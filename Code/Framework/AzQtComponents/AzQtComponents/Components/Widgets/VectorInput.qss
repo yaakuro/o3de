@@ -9,27 +9,25 @@
 AzQtComponents--VectorElement QLabel
 {
     margin: 2px;
-    border-top-left-radius: 2px;
-    border-bottom-left-radius: 2px;
     text-align: center;
 }
 
 AzQtComponents--VectorElement[Coordinate="X"] QLabel
 {
-    background-color: #E25243;
+    background-color: #8f3d3d;
 }
 
 AzQtComponents--VectorElement[Coordinate="Y"] QLabel
 {
-    background-color: #58BC61;
+    background-color: #3d8f3d;
 }
 
 AzQtComponents--VectorElement[Coordinate="Z"] QLabel
 {
-    background-color: #4285F4;
+    background-color: #3d3d8f;
 }
 
 AzQtComponents--VectorElement[Coordinate="W"] QLabel
 {
-    background-color: #E57829;
+    background-color: #a54829;
 }

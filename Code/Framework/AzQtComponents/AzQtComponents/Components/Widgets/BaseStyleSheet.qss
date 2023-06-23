@@ -15,7 +15,7 @@
 *
 {
     background-color: transparent;
-    color: white;
+    color: #d0d0d0;
     font-family: "Open Sans";
     font-weight: 400;
 }
@@ -24,9 +24,7 @@ QTableView,
 QListView,
 QTreeView
 {
-    /* give a background color to views without parent (completer popups)
-       it is reset to transparent in the next setting for views with a parent */
-    background-color: #444444;
+    background-color: #282828;
 }
 
 QWidget > QTableView,
@@ -34,7 +32,7 @@ QWidget > QListView,
 QWidget > QTreeView
 {
     /* reset the background-color of views with parents to transparent */
-    background-color: transparent;
+    background-color: #282828;
 }
 
 /* Fix frame HLine and VLine drawing. Affects QFrame but not subclasses */
@@ -61,8 +59,8 @@ QMainWindow,
 QDialog,
 QDockWidget
 {
-    color: #cccccc;
-    background-color: #444444;
+    color: #d0d0d0;
+    background-color: #252525;
 }
 
 QTextEdit,
@@ -73,23 +71,20 @@ QSpinBox,
 QDoubleSpinBox,
 QComboBox
 {
-    background-color: #CCCCCC;
-    color: black;
-    font-family: "Open Sans";
-    border-radius: 2px;
+    background-color: #181818;
     border-width: 0px;
     border-color: #e9e9e9;
     font-size: 12px;
     line-height: 16px;
+    border-radius: 0px;
 }
 
 QTextEdit,
 QPlainText,
 QPlainTextEdit
 {
-    background-color: #E9E9E9;
-    color: #545454;
-    margin: 2px;
+    background-color: #181818;
+    margin: 0px;
     border-width: 0px;
     border-style: solid;
 }
@@ -108,10 +103,20 @@ QTextEdit:focus,
 QPlainText:focus,
 QPlainTextEdit:focus
 {
-    margin: 1px;
     border-width: 1px;
     border-color: #94D2FF;
-    background-color: #E9E9E9;
+    background-color: #181818;
+}
+
+QSizeGrip {
+    /* This is a workaround for the case that file dialogs resize corner seem
+     * to overlap with the buttons. */
+	width: 4px;
+	height: 4px;
+	margin-top: 2px;
+	margin-right: 2px;
+	margin-bottom: 2px;
+	margin-left: 2px;
 }
 
 @import "AssetFolderListView.qss";

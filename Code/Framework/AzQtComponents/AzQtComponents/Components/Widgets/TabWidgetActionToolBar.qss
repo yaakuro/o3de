@@ -1,6 +1,6 @@
 AzQtComponents--TabWidget > AzQtComponents--TabWidgetActionToolBarContainer
 {
-    background: #111111;
+    background-color: transparent;
     min-height: 28px;
     margin: 0;
     margin-bottom: 9px;
@@ -14,6 +14,8 @@ AzQtComponents--TabWidget.Secondary > AzQtComponents--TabWidgetActionToolBarCont
 AzQtComponents--TabWidgetActionToolBar
 {
     spacing: 0px;
+
+    background-color: transparent;
 }
 
 AzQtComponents--TabWidgetActionToolBar QToolButton,

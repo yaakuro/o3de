@@ -10,28 +10,28 @@
 
 QLineEdit
 {
-    height: 16px;
+    background-color: #181818;
+    height: 20px;
     /* 4px padding already applied*/
     padding-left: 0px;
-    border-width: 2px;
+    border-width: 0px;
     border-style: solid;
-    padding-bottom: 1px;
-    padding-top: -1px;
 }
 
 QLineEdit[HasSearchAction=true]
 {
-    /* 10px padding already applied: 10 - 6 = 4 */
-    padding-left: -6px;
+
 }
 
-QTextEdit:disabled,
-QPlainText:disabled,
-QPlainTextEdit:disabled,
 QLineEdit:disabled
 {
-    background-color: #666666;
-    color: #999999;
+    background-color: #1f1f1f;
+    color: #3f3f3f;
+}
+
+QLineEdit:focus
+{
+
 }
 
 QAbstractItemView QLineEdit
@@ -41,8 +41,9 @@ QAbstractItemView QLineEdit
 
 QLineEdit QToolButton
 {
-    max-width: 16px;
-    min-width: 16px;
-    max-height: 16px;
-    min-height: 16px;
+
+    max-width: 20px;
+    min-width: 20px;
+    max-height: 20px;
+    min-height: 20px;
 }

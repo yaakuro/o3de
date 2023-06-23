@@ -16,11 +16,11 @@ AzQtComponents--ColorLabel
 AzQtComponents--ColorLabel AzQtComponents--Swatch
 {
     margin: 0px;
-    padding: 0px;
+    padding-right: 2px;
     min-width: 32px;
     max-width: 32px;
-    min-height: 16px;
-    max-height: 16px;
+    min-height: 20px;
+    max-height: 20px;
     border: 0px;
 }
 

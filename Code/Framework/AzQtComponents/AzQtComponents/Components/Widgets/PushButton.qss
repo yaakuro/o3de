@@ -32,6 +32,7 @@ QPushButton
     color: #ffffff;
     font-family: "Open Sans";
     font-size: 12px;
+    min-height: 20px;
 }
 
 QPushButton:hover,
