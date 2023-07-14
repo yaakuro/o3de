@@ -21,7 +21,7 @@ set(FILES
     ../Common/Unimplemented/AzFramework/StreamingInstall/StreamingInstall_Unimplemented.cpp
     ../Common/Default/AzFramework/TargetManagement/TargetManagementComponent_Default.cpp
     AzFramework/Windowing/NativeWindow_Linux.cpp
-    ../Common/Unimplemented/AzFramework/Input/Devices/Gamepad/InputDeviceGamepad_Unimplemented.cpp
+    AzFramework/Input/Devices/Gamepad/InputDeviceGamepad_Linux.cpp
     AzFramework/Input/Devices/Keyboard/InputDeviceKeyboard_Linux.cpp
     AzFramework/Input/Devices/Mouse/InputDeviceMouse_Linux.cpp
     ../Common/Unimplemented/AzFramework/Input/Devices/Motion/InputDeviceMotion_Unimplemented.cpp
