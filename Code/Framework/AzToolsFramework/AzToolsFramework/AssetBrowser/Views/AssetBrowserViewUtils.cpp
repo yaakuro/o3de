@@ -335,6 +335,10 @@ namespace AzToolsFramework
                             {
                                 AZ::IO::SystemFile::DeleteDir(item->GetFullPath().c_str());
                             }
+                            else
+                            {
+                                AZ::IO::SystemFile::Delete(item->GetFullPath().c_str());
+                            }
                         }
                     }
                 }

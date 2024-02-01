@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 
+#include <ftw.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -41,6 +42,18 @@ namespace AZ::IO
 {
     namespace
     {
+        int RemovePathCallback(const char* path, const struct stat* sb, int typeflag, struct FTW* ftwbuf)
+        {
+            if(remove(path) != 0)
+            {
+                // Indicate to nftw that an error occurred.
+                return -1;
+            }
+
+            // Continue traversal.
+            return 0;
+        }
+
         //=========================================================================
         //  Internal utility to create a folder hierarchy recursively without
         //  any additional string copies.
@@ -209,7 +222,7 @@ namespace AZ::IO::Platform
 
         if (dirName)
         {
-            return rmdir(dirName) == 0;
+            return nftw(dirName, RemovePathCallback, 64, FTW_DEPTH | FTW_PHYS) == 0;
         }
         return false;
     }
