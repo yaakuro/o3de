@@ -28,8 +28,28 @@ extern "C"
 namespace AzFramework
 {
     // meant to be a purely public struct to expose the functions.
-    struct LibEVDevWrapper
+    class LibEVDevWrapper
     {
+        static LibEVDevWrapper* instance;
+
+    public:
+
+        enum class DeviceType
+        {
+            Unknown,
+            Joystick,
+            Gamepad
+        };
+
+        static LibEVDevWrapper* GetInstance()
+        {
+            if (!instance)
+            {
+                instance = new LibEVDevWrapper();
+            }
+            return instance;
+        }
+
         using functionType_libevdev_free                = void(*)(struct libevdev *dev);
         using functionType_libevdev_new_from_fd         = int(*)(int fd, struct libevdev **dev);
         using functionType_libevdev_has_event_code      = int(*)(struct libevdev *dev, unsigned int type, unsigned int code);
@@ -37,6 +57,10 @@ namespace AzFramework
         using functionType_libevdev_event_code_get_name = const char*(*)(unsigned int type, unsigned int code);
         using functionType_libevdev_get_abs_info        = const struct input_absinfo*(*)(struct libevdev *dev, unsigned int code);
         using functionType_libevdev_next_event          = int(*)(struct libevdev *dev, unsigned int flags, struct input_event *ev);
+        using functionType_libevdev_has_event_type      = int(*)(const struct libevdev *dev, unsigned int type);
+        using functionType_libevdev_get_id_bustype      = int(*)(const struct libevdev *dev);
+        using functionType_libevdev_get_id_vendor      = int(*)(const struct libevdev *dev);
+        using functionType_libevdev_get_id_product      = int(*)(const struct libevdev *dev);
 
         functionType_libevdev_free                  m_libevdev_free = nullptr;
         functionType_libevdev_new_from_fd           m_libevdev_new_from_fd = nullptr;
@@ -45,8 +69,16 @@ namespace AzFramework
         functionType_libevdev_event_code_get_name   m_libevdev_event_code_get_name = nullptr;
         functionType_libevdev_get_abs_info          m_libevdev_get_abs_info = nullptr;
         functionType_libevdev_next_event            m_libevdev_next_event = nullptr;
+        functionType_libevdev_has_event_type        m_libevdev_has_event_type = nullptr;
+        functionType_libevdev_get_id_bustype        m_libevdev_get_id_bustype = nullptr;
+        functionType_libevdev_get_id_vendor         m_libevdev_get_id_vendor = nullptr;
+        functionType_libevdev_get_id_product        m_libevdev_get_id_product = nullptr;
 
         AZStd::unique_ptr<AZ::DynamicModuleHandle> m_libevdevHandle;
+
+        DeviceType GetDeviceType(struct libevdev* dev) const;
+        bool IsGamepadDevice(struct libevdev* dev) const;
+        bool IsJoystickDevice(struct libevdev* dev) const;
 
         LibEVDevWrapper();
         ~LibEVDevWrapper();

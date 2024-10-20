@@ -19,6 +19,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace AzFramework
 {
+    class InputDeviceJoystick;
     class InputDeviceGamepad;
     class InputDeviceKeyboard;
     class InputDeviceMotion;
@@ -109,6 +110,7 @@ namespace AzFramework
 
         ////////////////////////////////////////////////////////////////////////////////////////////
         // Input Device Variables
+        AZStd::vector<AZStd::unique_ptr<InputDeviceJoystick>> m_joysticks;        //!< Joystick devices
         AZStd::vector<AZStd::unique_ptr<InputDeviceGamepad>> m_gamepads;        //!< Game-pad devices
         AZStd::unique_ptr<InputDeviceKeyboard>               m_keyboard;        //!< Keyboard device
         AZStd::unique_ptr<InputDeviceMotion>                 m_motion;          //!< Motion device
@@ -119,6 +121,7 @@ namespace AzFramework
         ////////////////////////////////////////////////////////////////////////////////////////////
         // Serialized Variables
         AZ::u32 m_mouseMovementSampleRateHertz; //!< The mouse movement sample rate in Hertz
+        AZ::u32 m_joysticksEnabled;              //!< The number of enabled joysticks
         AZ::u32 m_gamepadsEnabled;              //!< The number of enabled game-pads
         bool    m_keyboardEnabled;              //!< Is the keyboard enabled?
         bool    m_motionEnabled;                //!< Is motion enabled?

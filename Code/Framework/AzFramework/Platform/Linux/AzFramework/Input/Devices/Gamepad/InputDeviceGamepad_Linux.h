@@ -7,13 +7,16 @@
  */
 #pragma once
 
-#include <AzCore/PlatformIncl.h>
-#include <AzCore/Time/ITime.h>
+#include "AzFramework/Input/LibUDevWrapper.h"
+
 #include <AzCore/Debug/Trace.h>
 #include <AzCore/Module/DynamicModuleHandle.h>
+#include <AzCore/PlatformIncl.h>
+#include <AzCore/Time/ITime.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 
 #include <AzFramework/Input/Devices/Gamepad/InputDeviceGamepad.h>
+
 
 namespace GamepadLinuxPrivate
 {
@@ -23,10 +26,11 @@ namespace GamepadLinuxPrivate
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace AzFramework
 {
-    struct LibEVDevWrapper;
     ////////////////////////////////////////////////////////////////////////////////////////////////
     //! Platform specific implementation for Linux game-pad input devices
-    class InputDeviceGamepadLinux : public InputDeviceGamepad::Implementation
+    class InputDeviceGamepadLinux
+        : public InputDeviceGamepad::Implementation
+        , public LinuxGamepadNotificationBus::Handler
     {
     public:
         ////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,13 +66,17 @@ namespace AzFramework
         //! \ref AzFramework::InputDeviceGamepad::Implementation::TickInputDevice
         void TickInputDevice() override;
 
-        void TryConnect();
         void BumpTryAgainTimeout(); //! Bumps the timeout of m_tryAgainTimeout to wait a little while.
         void UpdateButtonState(AZ::u32 buttonMask, bool pressed);
 
+        bool ConnectDevice(const AZStd::string& path);
+        void DisconnectDevice();
+        void OnConnected(const AZStd::string& path) override;
+        void OnDisconnected(const AZStd::string& path) override;
+
         // Variables
         RawGamepadState                            m_rawGamepadState;    //!< The last known raw game-pad state
-        bool                                       m_isConnected{};      //!< Is this game-pad currently connected?
+        bool                                       m_isConnected = false;      //!< Is this game-pad currently connected?
         AZ::TimeMs                                 m_tryAgainTimeout = AZ::Time::ZeroTimeMs;//!< Timeout before trying to connect again
 
         AZStd::unique_ptr<GamepadLinuxPrivate::InternalState> m_internalState;

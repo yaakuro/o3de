@@ -24,6 +24,10 @@ set(FILES
     ../Common/Default/AzFramework/Input/User/LocalUserId_Default.h
     AzFramework/Input/LibEVDevWrapper.h
     AzFramework/Input/LibEVDevWrapper.cpp
+    AzFramework/Input/LibUDevWrapper.cpp
+    AzFramework/Input/LibUDevWrapper.h
     AzFramework/Input/Devices/Gamepad/InputDeviceGamepad_Linux.cpp
     AzFramework/Input/Devices/Gamepad/InputDeviceGamepad_Linux.h
+        AzFramework/Input/Devices/Joystick/InputDeviceJoystick_Linux.cpp
+        AzFramework/Input/Devices/Joystick/InputDeviceJoystick_Linux.h
 )

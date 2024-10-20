@@ -20,13 +20,16 @@
 
 // libevdev could be used for other devices in the future (Can do keyboard, mouse, etc), so it doesn't belong in the gamepad
 // folder.
-#include <AzFramework/Input/LibEVDevWrapper.h> 
+#include <AzFramework/Input/LibEVDevWrapper.h>
+#include <AzFramework/Input/LibUDevWrapper.h>
 
 // For now, hardcode support for up to 4 gamepads connected.  Linux can actually do an very large number of connected
 // devices, but since O3DE pre-creates a device for each one, choose a normal number that corresponds to most other
 // consoles / game platforms.
 constexpr int g_max_gamepads = 4;
+constexpr int g_max_joystickss = 4;
 #include <AzFramework/Input/Devices/Gamepad/InputDeviceGamepad_Linux.h>
+#include <AzFramework/Input/Devices/Joystick/InputDeviceJoystick_Linux.h>
 
 constexpr rlim_t g_minimumOpenFileHandles = 65536L;
 
@@ -119,6 +122,39 @@ namespace AzFramework
         }
     };
 
+    struct LinuxDeviceJoystickImplFactory
+        : public InputDeviceJoystick::ImplementationFactory
+    {
+        // there is only one impl factory, so it can be used to create one libevdev wrapper for all gamepads.
+        AZStd::shared_ptr<LibEVDevWrapper> m_libevdevWrapper;
+        LinuxDeviceJoystickImplFactory()
+        {
+            m_libevdevWrapper = AZStd::make_shared<LibEVDevWrapper>();
+            UDevSingletonClass::getInstance()->Init();
+        }
+
+        AZStd::unique_ptr<InputDeviceJoystick::Implementation> Create(InputDeviceJoystick& inputDevice) override
+        {
+            AZ_Assert(
+                inputDevice.GetInputDeviceId().GetIndex() < GetMaxSupportedJoysticks(),
+                "Creating InputDeviceJoystick with index %d that is greater than max allowed: %d - increase the g_max_joysticks constant.",
+                inputDevice.GetInputDeviceId().GetIndex(),
+                GetMaxSupportedJoysticks());
+
+            return AZStd::unique_ptr<InputDeviceJoystick::Implementation>(InputDeviceJoystickLinux::Create(inputDevice));
+        }
+
+        AZ::u32 GetMaxSupportedJoysticks() const override
+        {
+            return g_max_joystickss;
+        }
+        ~LinuxDeviceJoystickImplFactory() override
+        {
+            m_libevdevWrapper.reset();
+            UDevSingletonClass::getInstance()->Shutdown();
+        }
+    };
+
     struct LinuxDeviceGamepadImplFactory
         : public InputDeviceGamepad::ImplementationFactory
     {
@@ -154,6 +190,12 @@ namespace AzFramework
     {
         m_applicationImplFactory = AZStd::make_unique<LinuxApplicationImplFactory>();
         AZ::Interface<Application::ImplementationFactory>::Register(m_applicationImplFactory.get());
+    }
+
+    void NativeUISystemComponent::InitializeDeviceJoystickImplentationFactory()
+    {
+        m_deviceJoystickImplFactory = AZStd::make_unique<LinuxDeviceJoystickImplFactory>();
+        AZ::Interface<InputDeviceJoystick::ImplementationFactory>::Register(m_deviceJoystickImplFactory.get());
     }
 
     void NativeUISystemComponent::InitializeDeviceGamepadImplentationFactory()

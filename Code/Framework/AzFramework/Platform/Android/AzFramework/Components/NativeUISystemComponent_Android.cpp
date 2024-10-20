@@ -39,4 +39,8 @@ namespace AzFramework
     // void NativeUISystemComponent::InitializeNativeWindowImplementationFactory()
     // (implemented in Code/Framework/AzFramework/Platform/Android/AzFramework/Windowing/NativeWindow_Android.cpp)
 
+    void NativeUISystemComponent::InitializeDeviceJoystickImplentationFactory()
+    {
+        // Not supported yet.
+    }
 } // namespace AzFramework

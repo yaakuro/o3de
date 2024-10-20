@@ -10,6 +10,7 @@
 
 #include <AzFramework/Input/Buses/Notifications/InputSystemNotificationBus.h>
 
+#include <AzFramework/Input/Devices/Joystick/InputDeviceJoystick.h>
 #include <AzFramework/Input/Devices/Gamepad/InputDeviceGamepad.h>
 #include <AzFramework/Input/Devices/Keyboard/InputDeviceKeyboard.h>
 #include <AzFramework/Input/Devices/Motion/InputDeviceMotion.h>
@@ -86,6 +87,7 @@ namespace AzFramework
             serializeContext->Class<InputSystemComponent, AZ::Component>()
                 ->Version(1)
                 ->Field("MouseMovementSampleRateHertz", &InputSystemComponent::m_mouseMovementSampleRateHertz)
+                ->Field("JoysticksEnabled", &InputSystemComponent::m_joysticksEnabled)
                 ->Field("GamepadsEnabled", &InputSystemComponent::m_gamepadsEnabled)
                 ->Field("KeyboardEnabled", &InputSystemComponent::m_keyboardEnabled)
                 ->Field("MotionEnabled", &InputSystemComponent::m_motionEnabled)
@@ -106,6 +108,10 @@ namespace AzFramework
                                                       "Increasing this may improve responsiveness, but could impact performance.\n"
                                                       "Decreasing it may improve performance, but could make it less responsive.")
                         ->Attribute(AZ::Edit::Attributes::Min, 1)
+                    ->DataElement(AZ::Edit::UIHandlers::SpinBox, &InputSystemComponent::m_joysticksEnabled,
+                        "Joysticks", "The number of joysticks enabled.")
+                        ->Attribute(AZ::Edit::Attributes::Min, 0)
+                        ->Attribute(AZ::Edit::Attributes::Max, 4)
                     ->DataElement(AZ::Edit::UIHandlers::SpinBox, &InputSystemComponent::m_gamepadsEnabled,
                         "Gamepads", "The number of game-pads enabled.")
                         ->Attribute(AZ::Edit::Attributes::Min, 0)
@@ -143,6 +149,7 @@ namespace AzFramework
         InputDevice::Reflect(context);
         LocalUserIdReflect(context);
 
+        InputDeviceJoystick::Reflect(context);
         InputDeviceGamepad::Reflect(context);
         InputDeviceKeyboard::Reflect(context);
         InputDeviceMotion::Reflect(context);
@@ -177,13 +184,15 @@ namespace AzFramework
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     InputSystemComponent::InputSystemComponent()
-        : m_gamepads()
+        : m_joysticks()
+        , m_gamepads()
         , m_keyboard()
         , m_motion()
         , m_mouse()
         , m_touch()
         , m_virtualKeyboard()
         , m_mouseMovementSampleRateHertz(InputDeviceMouse::MovementSampleRateDefault)
+        , m_joysticksEnabled(4)
         , m_gamepadsEnabled(4)
         , m_keyboardEnabled(true)
         , m_motionEnabled(true)
@@ -211,6 +220,10 @@ namespace AzFramework
             if (settingsRegistry->Get(value, "/O3DE/InputSystem/MouseMovementSampleRateHertz"))
             {
                 m_mouseMovementSampleRateHertz = aznumeric_caster(value);
+            }
+            if (settingsRegistry->Get(value, "/O3DE/InputSystem/JoysticksEnabled"))
+            {
+                m_joysticksEnabled = aznumeric_caster(value);
             }
             if (settingsRegistry->Get(value, "/O3DE/InputSystem/GamepadsEnabled"))
             {
@@ -299,11 +312,22 @@ namespace AzFramework
     ////////////////////////////////////////////////////////////////////////////////////////////////
     void InputSystemComponent::CreateEnabledInputDevices()
     {
+        auto deviceJoysticksImplFactory = AZ::Interface<InputDeviceJoystick::ImplementationFactory>::Get();
+        const AZ::u32 maxSupportedJoysticks = (deviceJoysticksImplFactory != nullptr) ? deviceJoysticksImplFactory->GetMaxSupportedJoysticks() : 0;
+        m_joysticksEnabled = AZStd::clamp<AZ::u32>(m_gamepadsEnabled, 0, maxSupportedJoysticks);
+
         auto deviceGamepadImplFactory = AZ::Interface<InputDeviceGamepad::ImplementationFactory>::Get();
         const AZ::u32 maxSupportedGamepads = (deviceGamepadImplFactory != nullptr) ? deviceGamepadImplFactory->GetMaxSupportedGamepads() : 0;
         m_gamepadsEnabled = AZStd::clamp<AZ::u32>(m_gamepadsEnabled, 0, maxSupportedGamepads);
 
+
         DestroyEnabledInputDevices();
+
+        m_joysticks.resize(m_joysticksEnabled);
+        for (AZ::u32 i = 0; i < m_joysticksEnabled; ++i)
+        {
+            m_joysticks[i].reset(aznew InputDeviceJoystick(i));
+        }
 
         m_gamepads.resize(m_gamepadsEnabled);
         for (AZ::u32 i = 0; i < m_gamepadsEnabled; ++i)
@@ -333,5 +357,6 @@ namespace AzFramework
         m_motion.reset(nullptr);
         m_keyboard.reset(nullptr);
         m_gamepads.clear();
+        m_joysticks.clear();
     }
 } // namespace AzFramework

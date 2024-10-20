@@ -10,6 +10,7 @@
 
 #include <AzCore/Component/Component.h>
 #include <AzFramework/Application/Application.h>
+#include <AzFramework/Input/Devices/Joystick/InputDeviceJoystick.h>
 #include <AzFramework/Input/Devices/Gamepad/InputDeviceGamepad.h>
 #include <AzFramework/Input/Devices/Keyboard/InputDeviceKeyboard.h>
 #include <AzFramework/Input/Devices/Motion/InputDeviceMotion.h>
@@ -47,6 +48,7 @@ namespace AzFramework
 
     private:
         void InitializeApplicationImplementationFactory();
+        void InitializeDeviceJoystickImplentationFactory();
         void InitializeDeviceGamepadImplentationFactory();
         void InitializeDeviceKeyboardImplementationFactory();
         void InitializeDeviceMotionImplentationFactory(); 
@@ -56,6 +58,7 @@ namespace AzFramework
         void InitializeNativeWindowImplementationFactory();
 
         AZStd::unique_ptr<Application::ImplementationFactory> m_applicationImplFactory;
+        AZStd::unique_ptr<InputDeviceJoystick::ImplementationFactory> m_deviceJoystickImplFactory;
         AZStd::unique_ptr<InputDeviceGamepad::ImplementationFactory> m_deviceGamepadImplFactory;
         AZStd::unique_ptr<InputDeviceKeyboard::ImplementationFactory> m_deviceKeyboardImplFactory;
         AZStd::unique_ptr<InputDeviceMotion::ImplementationFactory> m_deviceMotionImplFactory;

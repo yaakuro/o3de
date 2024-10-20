@@ -48,11 +48,28 @@ namespace GamepadLinuxPrivate
             float m_axisRightScale = 1.0f;
             float m_axisRightOffset = 1.0f;
 
-            AZStd::shared_ptr<LibEVDevWrapper> m_libevdevModule; // This comes from the factory, one is shared by all gamepads
-
-            InternalState(AZStd::shared_ptr<LibEVDevWrapper> libEVDev)
-            : m_libevdevModule(libEVDev)
+            bool OpenDevice(const AZStd::string& devicePath)
             {
+                m_fileDescriptor = open(devicePath.c_str(), O_RDONLY|O_NONBLOCK);
+                if (m_fileDescriptor  == -1)
+                {
+                    return true;
+                }
+
+                if (LibEVDevWrapper::GetInstance()->m_libevdev_new_from_fd(m_fileDescriptor, &m_evdevDevice) != 0)
+                {
+                    CloseDevice();
+                    return true;
+                }
+
+                // Check if the device is a gamepad else ignore.
+                if(!LibEVDevWrapper::GetInstance()->IsGamepadDevice(m_evdevDevice))
+                {
+                    CloseDevice();
+                    return true;
+                }
+
+                return false;
             }
 
             void CloseDevice() // closes the device, but not the dynamic module handle
@@ -61,7 +78,7 @@ namespace GamepadLinuxPrivate
                 {
                     // it is not possible to create this device without having a valid
                     // module handle and function pointers.  No need to check here.
-                    m_libevdevModule->m_libevdev_free(m_evdevDevice);
+                    LibEVDevWrapper::GetInstance()->m_libevdev_free(m_evdevDevice);
                     m_evdevDevice = nullptr;
                 }
                 if (m_fileDescriptor != -1)
@@ -69,11 +86,6 @@ namespace GamepadLinuxPrivate
                     close(m_fileDescriptor);
                     m_fileDescriptor = -1;
                 }
-            }
-
-            ~InternalState()
-            {
-                m_libevdevModule.reset();
             }
     };
 
@@ -245,6 +257,15 @@ namespace AzFramework
         , m_rawGamepadState(GetDigitalButtonIdByBitMaskMap())
         , m_isConnected(false)
     {
+        const auto Index = GetInputDeviceIndex();
+        const auto path = UDevSingletonClass::getInstance()->GetGamepadFilePath(Index);
+        if(!path.empty())
+        {
+            ConnectDevice(path);
+        }
+
+        LinuxGamepadNotificationBus::Handler::BusConnect();
+
         // These values are adjusted when a joystick is detected.  So these just exist
         // to be placeholders until we actually compute them based on the data from the device.
         m_rawGamepadState.m_triggerDeadZoneValue = 0.1f;
@@ -261,13 +282,14 @@ namespace AzFramework
         // to account for that, this code will adjust and offset and scale.
         m_rawGamepadState.m_thumbStickMaximumValue = 1.0f;
 
-        m_internalState.reset(new InternalState(libevdevWrapper));
+        m_internalState.reset(new InternalState());
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     InputDeviceGamepadLinux::~InputDeviceGamepadLinux()
     {
         m_internalState.reset();
+        LinuxGamepadNotificationBus::Handler::BusDisconnect();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -299,78 +321,73 @@ namespace AzFramework
         m_tryAgainTimeout = s_retryDelayAfterFail + AZ::TimeMs(10 * GetInputDeviceIndex());
     }
 
-    // Called periodically but only on devices that are not currently already connected.
-    void InputDeviceGamepadLinux::TryConnect()
+    // one choice to be made here is whether sub-frame events should be immediately sent to the device
+    // for example a person could flick a stick to the edge and back to the center all in the space of one frame,
+    // and get many events within a single frame, but most games only care about where the stick is at the end of the frame
+    // when they go to do their input computation.  Its also more expensive to respond to events for every movement
+    // on axes, because the hardware might actually send many input events to represent one movement in one frame for an analog
+    // device.
+
+    // To make it as responsive as possible, for now, but not waste processing power, 
+    // let's consider button presses to be things we don't want to miss within a sub-frame but stick movements to be things we only
+    // care about knowing where it lands up when the event queue is dry.
+    void InputDeviceGamepadLinux::UpdateButtonState(AZ::u32 buttonMask, bool pressed)
+    {
+        AZ::u32 priorState = m_rawGamepadState.m_digitalButtonStates;
+        ;
+        if (pressed)
+        {
+            m_rawGamepadState.m_digitalButtonStates = m_rawGamepadState.m_digitalButtonStates | buttonMask;
+        }
+        else
+        {
+            m_rawGamepadState.m_digitalButtonStates = m_rawGamepadState.m_digitalButtonStates & ~buttonMask;
+        }
+
+        // send a button change immediately if one occurred.
+        if (priorState != m_rawGamepadState.m_digitalButtonStates)
+        {
+            ProcessRawGamepadState(m_rawGamepadState);
+        }
+    }
+    bool InputDeviceGamepadLinux::ConnectDevice(const AZStd::string& path)
     {
         using namespace GamepadLinuxPrivate;
 
-        if (m_isConnected)
+        if(m_internalState->OpenDevice(path))
         {
-            return;
-        }
-
-        // if libevdev wasn't successfully loaded, no point in proceeding, either.
-        if (!m_internalState->m_libevdevModule->m_libevdevHandle)
-        {
-            return;
-        }
-
-        if (m_tryAgainTimeout > AZ::Time::ZeroTimeMs)
-        {
-            m_tryAgainTimeout -= AZ::TimeUsToMs(AZ::GetRealTickDeltaTimeUs());
-            return;
-        }
-        
-        AZStd::string canFind = FindJoystickForIndex(GetInputDeviceIndex());
-        if (canFind.empty())
-        {
-            BumpTryAgainTimeout();
-            return;
-        }
-
-        m_internalState->m_fileDescriptor = open(canFind.c_str(), O_RDONLY|O_NONBLOCK);
-        if (m_internalState->m_fileDescriptor  == -1)
-        {
-            BumpTryAgainTimeout();
-            return;
-        }
-            
-        if (m_internalState->m_libevdevModule->m_libevdev_new_from_fd(m_internalState->m_fileDescriptor, &m_internalState->m_evdevDevice) != 0)
-        {
-            m_internalState->CloseDevice();
-            BumpTryAgainTimeout();
-            return;
+            return true;
         }
 
         // if we get here, we successfully opened the device.
         // Show the gamepad's name and its index to the main log.
         // For debugging, output the buttons and axes available to trace, which won't show up on the regular console log.
         // note that the BTN_JOYSTICK, KEY_MAX, EV_KEY* all come from linux input, not from evdev.
-        AZ_Info("Input", "Detected Gamepad at index %u, with name: \"%s\"\n", GetInputDeviceIndex(), 
-            m_internalState->m_libevdevModule->m_libevdev_get_name(m_internalState->m_evdevDevice));
+        AZ_Info("Input", "Detected Gamepad at index %u, with name: \"%s\"\n", GetInputDeviceIndex(),
+            LibEVDevWrapper::GetInstance()->m_libevdev_get_name(m_internalState->m_evdevDevice));
 
         for (int i = BTN_JOYSTICK; i < KEY_MAX; ++i) {
-            if (m_internalState->m_libevdevModule->m_libevdev_has_event_code(m_internalState->m_evdevDevice, EV_KEY, i)) {
-                AZ_Trace("Input", "    Button Detected: %s\n", m_internalState->m_libevdevModule->m_libevdev_event_code_get_name(EV_KEY, i));
+            if (LibEVDevWrapper::GetInstance()->m_libevdev_has_event_code(m_internalState->m_evdevDevice, EV_KEY, i)) {
+                AZ_Trace("Input", "    Button Detected: %s\n", LibEVDevWrapper::GetInstance()->m_libevdev_event_code_get_name(EV_KEY, i));
             }
         }
 
         // output the axes, to the log but also, while grabbing them, use the data from the OS to calibrate their
         // dead zone and ranges.
-        for (int i = 0; i < ABS_MAX; ++i) 
+        for (int i = 0; i < ABS_MAX; ++i)
         {
-            if (m_internalState->m_libevdevModule->m_libevdev_has_event_code(m_internalState->m_evdevDevice, EV_ABS, i))
+            if (LibEVDevWrapper::GetInstance()->m_libevdev_has_event_code(m_internalState->m_evdevDevice, EV_ABS, i))
             {
-                const struct input_absinfo *absInfo = m_internalState->m_libevdevModule->m_libevdev_get_abs_info(m_internalState->m_evdevDevice, i);
+                const struct input_absinfo *absInfo = LibEVDevWrapper::GetInstance()->m_libevdev_get_abs_info(m_internalState->m_evdevDevice, i);
                 if (absInfo)
                 {
-                    AZ_Trace("Input", "Detected Gamepad axis: %s...\n", m_internalState->m_libevdevModule->m_libevdev_event_code_get_name(EV_ABS, i));
+                    AZ_Trace("Input", "Detected Gamepad axis: %s...\n", LibEVDevWrapper::GetInstance()->m_libevdev_event_code_get_name(EV_ABS, i));
                     AZ_Trace("Input", "    Value: %d\n    Minimum: %d\n    Maximum: %d\n    Fuzz: %d\n    Flat:%d\n",
                         absInfo->value, absInfo->minimum, absInfo->maximum, absInfo->fuzz, absInfo->flat);
                     switch (i)
                     {
                         // note that the thumbsticks will be normalized between -1.0 and 1.0 and the deadzone
-                        // has to be in that same unit.  Calculate the range and convert the deadzone into that range. 
+                        // has to be in that same unit.  Calculate the range and convert the deadzone into that range.
                         case ABS_X:
                         case ABS_Y:
                         {
@@ -382,7 +399,7 @@ namespace AzFramework
                                 m_internalState->m_axisLeftScale = 1.0f / (range / 2.0f);
                                 m_rawGamepadState.m_thumbStickLeftDeadZone = static_cast<float>(absInfo->flat) * m_internalState->m_axisLeftScale;
                             }
-                            
+
                             break;
                         }
                         case ABS_RX:
@@ -408,11 +425,11 @@ namespace AzFramework
                             m_rawGamepadState.m_triggerMaximumValue = static_cast<float>(absInfo->maximum);
                             m_rawGamepadState.m_triggerDeadZoneValue = static_cast<float>(absInfo->flat);
                         }
-                        case ABS_HAT0X: 
+                        case ABS_HAT0X:
                         case ABS_HAT0Y:
                             // special case, some devices represent the dpad as an axis, not as buttons.
                             // note that devices which DO present the dpad as buttons will already work
-                            // because they will have the BTN_DPAD_XXX buttons, which is already mapped 
+                            // because they will have the BTN_DPAD_XXX buttons, which is already mapped
                             // by the KEY events.
                             m_internalState->m_dPadHatMax = static_cast<float>(absInfo->maximum);
 
@@ -424,44 +441,51 @@ namespace AzFramework
         m_isConnected = true;
         ResetInputChannelStates();
         BroadcastInputDeviceConnectedEvent();
+
+        return false;
     }
 
-    // one choice to be made here is whether sub-frame events should be immediately sent to the device
-    // for example a person could flick a stick to the edge and back to the center all in the space of one frame,
-    // and get many events within a single frame, but most games only care about where the stick is at the end of the frame
-    // when they go to do their input computation.  Its also more expensive to respond to events for every movement
-    // on axes, because the hardware might actually send many input events to represent one movement in one frame for an analog
-    // device.
-
-    // To make it as responsive as possible, for now, but not waste processing power, 
-    // let's consider button presses to be things we don't want to miss within a sub-frame but stick movements to be things we only
-    // care about knowing where it lands up when the event queue is dry.
-    void InputDeviceGamepadLinux::UpdateButtonState(AZ::u32 buttonMask, bool pressed)
+    void InputDeviceGamepadLinux::DisconnectDevice()
     {
-        AZ::u32 priorState = m_rawGamepadState.m_digitalButtonStates;;
-        if (pressed)
+        m_isConnected = false;
+        m_rawGamepadState.Reset();
+        m_internalState->CloseDevice();
+        ResetInputChannelStates();
+        BroadcastInputDeviceDisconnectedEvent();
+    }
+
+    void InputDeviceGamepadLinux::OnConnected(const AZStd::string& path)
+    {
+        const auto index = UDevSingletonClass::getInstance()->GetGamepadFileIndex(path);
+        if(GetInputDeviceIndex() != index)
         {
-            m_rawGamepadState.m_digitalButtonStates = m_rawGamepadState.m_digitalButtonStates | buttonMask;
-        }
-        else
-        {
-            m_rawGamepadState.m_digitalButtonStates = m_rawGamepadState.m_digitalButtonStates & ~buttonMask;
+            return;
         }
 
-        // send a button change immediately if one occurred.
-        if (priorState != m_rawGamepadState.m_digitalButtonStates)
+        if(ConnectDevice(path))
         {
-            ProcessRawGamepadState(m_rawGamepadState);
+            return;
         }
+
+        AZ_Info("Input", "Gamepad %s connected", path.c_str());
+    }
+
+    void InputDeviceGamepadLinux::OnDisconnected(const AZStd::string& path)
+    {
+        const auto index = UDevSingletonClass::getInstance()->GetGamepadFileIndex(path);
+        if(GetInputDeviceIndex() != index)
+        {
+            return;
+        }
+
+        DisconnectDevice();
+
+        AZ_Info("Input", "Gamepad %s disconnected", path.c_str());
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     void InputDeviceGamepadLinux::TickInputDevice()
     {
-        // This happens for all device indices, even inactive ones.
-        // If they are inactive, we should check if they have been activated, and vice-versa
-        TryConnect();
-
         if (m_isConnected)
         {
             // we can only get into this block of code if the libevdevModule is valid in the first place
@@ -471,7 +495,7 @@ namespace AzFramework
 
             bool updatedGamepadAxis = false;
             int libevdevResult = 0;
-            auto nextEventFn = m_internalState->m_libevdevModule->m_libevdev_next_event;
+            auto nextEventFn = LibEVDevWrapper::GetInstance()->m_libevdev_next_event;
             while ((libevdevResult = nextEventFn(m_internalState->m_evdevDevice, O3DEWRAPPER_LIBEVDEV_READ_FLAG_NORMAL, &ev)) == O3DEWRAPPER_LIBEVDEV_READ_STATUS_SUCCESS)
             {
                 switch (ev.type)

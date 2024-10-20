@@ -19,6 +19,8 @@ namespace AzFramework
     
         InitializeApplicationImplementationFactory();
 
+        InitializeDeviceJoystickImplentationFactory();
+
         InitializeDeviceGamepadImplentationFactory();
         
         InitializeDeviceKeyboardImplementationFactory();
@@ -39,6 +41,11 @@ namespace AzFramework
         if (m_applicationImplFactory)
         {
             AZ::Interface<Application::ImplementationFactory>::Unregister(m_applicationImplFactory.get());
+        }
+
+        if(m_deviceJoystickImplFactory)
+        {
+            AZ::Interface<InputDeviceJoystick::ImplementationFactory>::Unregister(m_deviceJoystickImplFactory.get());
         }
 
         if (m_deviceGamepadImplFactory)

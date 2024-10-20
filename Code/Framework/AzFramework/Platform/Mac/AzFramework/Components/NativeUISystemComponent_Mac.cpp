@@ -21,6 +21,11 @@ namespace AzFramework
     // void NativeUISystemComponent::InitializeDeviceKeyboardImplementationFactory()
     // (implemented in Code/Framework/AzFramework/Platform/Mac/AzFramework/Input/Devices/Keyboard/InputDeviceKeyboard_Mac.mm)
 
+    void NativeUISystemComponent::InitializeDeviceJoystickImplentationFactory()
+    {
+        // Not supported yet.
+    }
+
     void NativeUISystemComponent::InitializeDeviceMotionImplentationFactory()
     {
         // Motion Input not supported on Mac

@@ -436,6 +436,8 @@ set(FILES
     Input/Devices/InputDevice.h
     Input/Devices/InputDeviceId.cpp
     Input/Devices/InputDeviceId.h
+    Input/Devices/Joystick/InputDeviceJoystick.cpp
+    Input/Devices/Joystick/InputDeviceJoystick.h
     Input/Devices/Gamepad/InputDeviceGamepad.cpp
     Input/Devices/Gamepad/InputDeviceGamepad.h
     Input/Devices/Keyboard/InputDeviceKeyboard.cpp

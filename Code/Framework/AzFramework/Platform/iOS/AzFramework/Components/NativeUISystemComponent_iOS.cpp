@@ -31,6 +31,11 @@ namespace AzFramework
         // Mouse Input not supported on iOS
     }
 
+    void NativeUISystemComponent::InitializeDeviceJoystickImplentationFactory()
+    {
+        // Not supported yet.
+    }
+
     // void NativeUISystemComponent::InitializeDeviceTouchImplentationFactory()
     // (implemented in Code/Framework/AzFramework/Platform/iOS/AzFramework/Input/Devices/Touch/InputDeviceTouch_iOS.mm)
 

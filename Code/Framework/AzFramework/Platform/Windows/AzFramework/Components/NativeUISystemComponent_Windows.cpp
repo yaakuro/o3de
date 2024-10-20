@@ -90,6 +90,11 @@ namespace AzFramework
         AZ::Interface<Application::ImplementationFactory>::Register(m_applicationImplFactory.get());
     }
 
+    void NativeUISystemComponent::InitializeDeviceJoystickImplentationFactory()
+    {
+        // Not supported yet.
+    }
+
     void NativeUISystemComponent::InitializeDeviceGamepadImplentationFactory()
     {
         m_deviceGamepadImplFactory = AZStd::make_unique<WindowsDeviceGamepadImplFactory>();
