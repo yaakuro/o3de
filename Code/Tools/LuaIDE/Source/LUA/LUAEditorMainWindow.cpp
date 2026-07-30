@@ -38,10 +38,12 @@
 #include <Source/LUA/TargetContextButton.hxx>
 
 #include "ClassReferenceFilter.hxx"
+#include "LUAEditorFindWidget.h"
 #include "DebugAttachmentButton.hxx"
 #include "LUABreakpointTrackerMessages.h"
 #include "LUAEditorContextMessages.h"
 #include "LUAEditorGoToLineDialog.hxx"
+#include "LUAEditorFindInFilesDialog.hxx"
 #include "LUAEditorSettingsDialog.hxx"
 #include "LUAEditorView.hxx"
 #include "RecentFiles.h"
@@ -59,6 +61,7 @@
 #include <QFileDialog>
 #include <QLabel>
 #include <QMessageBox>
+#include <QTextCursor>
 #include <QString>
 #include <QTimer>
 
@@ -83,7 +86,6 @@ namespace LUAEditor
     LUAEditorMainWindow::LUAEditorMainWindow(QStandardItemModel* dataModel, bool connectedState, QWidget* parent, Qt::WindowFlags flags)
         : QMainWindow(parent, flags)
         , m_lastFocusedAssetId()
-        , m_ptrFindDialog(nullptr)
         , m_settingsDialog(nullptr)
         , m_actionClearRecentFiles(nullptr)
     {
@@ -114,7 +116,6 @@ namespace LUAEditor
             &AzToolsFramework::FrameworkMessages::Bus::Events::PopulateApplicationMenu, theMenu);
         menuBar()->insertMenu(m_gui->menuFile->menuAction(), theMenu);
 
-        m_ptrFindDialog = aznew LUAEditorFindDialog(this);
         m_settingsDialog = aznew LUAEditorSettingsDialog(this);
 
         actionTabForwards = new QAction(tr("Next Document Tab"), this);
@@ -169,7 +170,6 @@ namespace LUAEditor
 
         //turn these off by default
         m_settingsDialog->hide();
-        m_ptrFindDialog->hide();
         m_gui->watchDockWidget->hide();
         m_gui->stackDockWidget->hide();
         m_gui->localsDockWidget->hide();
@@ -282,7 +282,7 @@ namespace LUAEditor
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAFind"), m_gui->actionFind);
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAQuickFindLocal"), m_gui->actionFindLocal);
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAQuickFindLocalReverse"), m_gui->actionFindLocalReverse);
-            HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAFindInFiles"), m_gui->actionFindInAllOpen);
+            HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAFindInFiles"), m_gui->actionFindInFiles);
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAReplace"), m_gui->actionReplace);
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAReplaceInFiles"), m_gui->actionReplaceInAllOpen);
             HotkeyBus::Broadcast(&HotkeyBus::Events::RegisterActionToHotkey, AZ_CRC_CE("LUAGoToLine"), m_gui->actionGoToLine);
@@ -551,6 +551,7 @@ namespace LUAEditor
         luaLayout->layout()->setContentsMargins(0, 0, 0, 0);
 
         LUAViewWidget* luaViewWidget = aznew LUAViewWidget();
+        luaViewWidget->SetMainWindow(this);
         luaViewWidget->SetLuaDockWidget(luaDockWidget);
         luaDockWidget->setObjectName(QString::fromUtf8(docInfo.m_displayName.c_str()));
 
@@ -1311,75 +1312,152 @@ namespace LUAEditor
 
     void LUAEditorMainWindow::OnEditMenuFind()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->show();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(false);
-        m_ptrFindDialog->SetNewSearchStarting();
-        m_ptrFindDialog->ResetSearch();
-        m_ptrFindDialog->activateWindow();
-        m_ptrFindDialog->raise();
+
+        if (auto * const currentView = static_cast<LUAViewWidget*>(GetCurrentView()))
+        {
+            currentView->ShowFindMenu(true);
+        }
     }
 
     void LUAEditorMainWindow::OnEditMenuReplace()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->show();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(false);
-        m_ptrFindDialog->SetNewSearchStarting();
-        m_ptrFindDialog->ResetSearch();
-        m_ptrFindDialog->activateWindow();
-        m_ptrFindDialog->raise();
+        if (auto * const currentView = static_cast<LUAViewWidget*>(GetCurrentView()))
+        {
+            currentView->ShowFindAndReplace(true);
+        }
     }
 
-    void LUAEditorMainWindow::OnEditMenuFindInAllOpen()
+    void LUAEditorMainWindow::OnEditMenuFindInFiles()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->show();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(true);
-        m_ptrFindDialog->SetNewSearchStarting();
-        m_ptrFindDialog->ResetSearch();
-        m_ptrFindDialog->activateWindow();
-        m_ptrFindDialog->raise();
+        auto* dialog = aznew LUAEditorFindInFilesDialog(this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        dialog->show();
+        dialog->raise();
+        dialog->activateWindow();
     }
 
     void LUAEditorMainWindow::OnEditMenuReplaceInAllOpen()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->show();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(true);
-        m_ptrFindDialog->SetNewSearchStarting();
-        m_ptrFindDialog->ResetSearch();
-        m_ptrFindDialog->activateWindow();
-        m_ptrFindDialog->raise();
+        if (auto* currentView = static_cast<LUAViewWidget*>(GetCurrentView()))
+        {
+            auto* findWidget = currentView->GetFindWidget();
+            if (findWidget)
+            {
+                findWidget->SetSearchScope(1); // All Open Files
+                currentView->ShowFindAndReplace(true);
+                findWidget->OnReplaceAllClicked();
+            }
+        }
+    }
+
+    void LUAEditorMainWindow::OnEditMenuFindInAllOpen()
+    {
+        if (auto* currentView = static_cast<LUAViewWidget*>(GetCurrentView()))
+        {
+            auto* findWidget = currentView->GetFindWidget();
+            if (findWidget)
+            {
+                findWidget->SetSearchScope(1); // All Open Files
+                findWidget->OnFindAllClicked();
+            }
+        }
     }
 
     void LUAEditorMainWindow::OnEditMenuFindLocal()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(false);
-        m_ptrFindDialog->SetNewSearchStarting(true, true);
-        m_ptrFindDialog->OnFindNext();
+        if (auto* currentView = GetCurrentView())
+        {
+            QString searchText;
+            QTextCursor cursor = currentView->GetTextCursor();
+
+            if (cursor.hasSelection())
+            {
+                searchText = cursor.selectedText();
+            }
+            else
+            {
+                // Select the word at cursor position for quick find
+                QTextCursor wordCursor = currentView->GetTextCursor();
+                wordCursor.select(QTextCursor::WordUnderCursor);
+                if (wordCursor.hasSelection())
+                {
+                    searchText = wordCursor.selectedText();
+                }
+            }
+
+            if (!searchText.isEmpty())
+            {
+                auto* findWidget = currentView->GetFindWidget();
+                if (findWidget)
+                {
+                    findWidget->SetCurrentView(currentView);
+                    findWidget->SetSearchText(searchText);
+
+                    currentView->ShowFindMenu(true);
+                    findWidget->SyncFindNext();
+                }
+            }
+        }
     }
 
     void LUAEditorMainWindow::OnEditMenuFindLocalReverse()
     {
-        m_ptrFindDialog->SaveState();
-        m_ptrFindDialog->SetAnyDocumentsOpen(m_StateTrack.atLeastOneFileOpen);
-        m_ptrFindDialog->SetToFindInAllOpen(false);
-        m_ptrFindDialog->SetNewSearchStarting(true, false);
-        m_ptrFindDialog->OnFindNext();
+        if (auto* currentView = GetCurrentView())
+        {
+            QString searchText;
+            QTextCursor cursor = currentView->GetTextCursor();
+
+            if (cursor.hasSelection())
+            {
+                searchText = cursor.selectedText();
+            }
+            else
+            {
+                // Select the word at cursor position for quick find
+                QTextCursor wordCursor = currentView->GetTextCursor();
+                wordCursor.select(QTextCursor::WordUnderCursor);
+                if (wordCursor.hasSelection())
+                {
+                    searchText = wordCursor.selectedText();
+                }
+            }
+
+            if (!searchText.isEmpty())
+            {
+                auto* findWidget = currentView->GetFindWidget();
+                if (findWidget)
+                {
+                    findWidget->SetCurrentView(currentView);
+                    findWidget->SetSearchText(searchText);
+
+                    currentView->ShowFindMenu(true);
+                    findWidget->SyncFindPrevious();
+                }
+            }
+        }
     }
 
     void LUAEditorMainWindow::OnEditMenuFindNext()
     {
-        if (m_ptrFindDialog)
+        if (auto* currentView = GetCurrentView())
         {
-            m_ptrFindDialog->OnFindNext();
+            if (auto* findWidget = currentView->GetFindWidget())
+            {
+                findWidget->SyncFindNext();
+                return;
+            }
+        }
+    }
+
+    void LUAEditorMainWindow::OnEditMenuFindPrevious()
+    {
+        if (auto* currentView = GetCurrentView())
+        {
+            if (auto* findWidget = currentView->GetFindWidget())
+            {
+                findWidget->SyncFindPrevious();
+                return;
+            }
         }
     }
 
@@ -1846,7 +1924,7 @@ namespace LUAEditor
         {
             // the document was probably closed, request it be reopened
             m_dProcessFindListClicked.push_back(result);
-            AZ_Assert(false, "Fix assets!");
+            Context_DocumentManagement::Bus::Broadcast(&Context_DocumentManagement::Bus::Events::OnLoadDocument, result.m_assetId, true);
         }
     }
 
@@ -1854,7 +1932,9 @@ namespace LUAEditor
     {
         for (auto iter = m_dProcessFindListClicked.begin(); iter != m_dProcessFindListClicked.end(); ++iter)
         {
-            if (iter->m_assetId == info.m_assetId)
+            AZStd::string normalizedIterId(iter->m_assetId);
+            AZStd::to_lower(normalizedIterId.begin(), normalizedIterId.end());
+            if (normalizedIterId == info.m_assetId)
             {
                 AZ_Assert(iter->m_assignAssetId, "m_assignAssetId was never set");
                 iter->m_assetId = pLUAViewWidget->m_Info.m_assetId;
@@ -2261,6 +2341,13 @@ namespace LUAEditor
                 OnEditMenuCut();
                 return true;
             }
+            else if (keyEvent->key() == Qt::Key_Escape)
+            {
+                if (auto * const currentView = GetCurrentView())
+                {
+                    currentView->ShowFindMenu(false);
+                }
+            }
         }
         else if (event->type() == QEvent::KeyRelease)
         {
@@ -2411,8 +2498,6 @@ namespace LUAEditor
                 ->Field("m_bAutocompleteEnabled", &LUAEditorMainWindowSavedState::m_bAutocompleteEnabled)
                 ->Field("m_bAutoReloadUnmodifiedFiles", &LUAEditorMainWindowSavedState::m_bAutoReloadUnmodifiedFiles);
         }
-
-        LUAEditorFindDialog::Reflect(reflection);
     }
 
 

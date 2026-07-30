@@ -65,17 +65,24 @@
     </widget>
    </item>
    <item>
-    <widget class="LUAEditor::LUAEditorPlainTextEdit" name="m_luaTextEdit">
-     <property name="frameShape">
-      <enum>QFrame::StyledPanel</enum>
-     </property>
-     <property name="lineWrapMode">
-      <enum>QPlainTextEdit::NoWrap</enum>
-     </property>
-     <property name="backgroundVisible">
-      <bool>false</bool>
-     </property>
-    </widget>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="LUAEditor::LUAEditorPlainTextEdit" name="m_luaTextEdit">
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
+       </property>
+       <property name="lineWrapMode">
+        <enum>QPlainTextEdit::NoWrap</enum>
+       </property>
+       <property name="backgroundVisible">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="LUAEditor::LUAEditorFindWidget" name="m_findReplaceWidget" native="true"/>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>
@@ -95,6 +102,12 @@
    <class>LUAEditor::FoldingWidget</class>
    <extends>QWidget</extends>
    <header>LUAEditorFoldingWidget.hxx</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>LUAEditor::LUAEditorFindWidget</class>
+   <extends>QWidget</extends>
+   <header>Source/LUA/LUAEditorFindWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

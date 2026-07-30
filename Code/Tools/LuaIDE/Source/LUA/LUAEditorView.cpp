@@ -17,15 +17,18 @@
 #include "LUABreakpointTrackerMessages.h"
 #include "LUAEditorSyntaxHighlighter.hxx"
 #include "LUAEditorStyleMessages.h"
+#include "LUAEditorFindWidget.h"
 
 #include <Source/LUA/ui_LUAEditorView.h>
 #include <AzToolsFramework/SourceControl/SourceControlAPI.h>
 
 #include <QFileInfo>
+#include <QTextCursor>
 #include <QTimer>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QRegularExpression>
+#include <QLineEdit>
 
 namespace LUAEditor
 {
@@ -133,6 +136,8 @@ namespace LUAEditor
 
         m_gui->m_breakpoints->SetTextEdit(m_gui->m_luaTextEdit);
         m_gui->m_folding->SetTextEdit(m_gui->m_luaTextEdit);
+        m_gui->m_findReplaceWidget->setVisible(false);
+        m_gui->m_findReplaceWidget->SetCurrentView(this);
 
         m_Highlighter = aznew LUASyntaxHighlighter(m_gui->m_luaTextEdit->document());
 
@@ -727,6 +732,11 @@ namespace LUAEditor
         m_gui->m_luaTextEdit->selectAll();
     }
 
+    QTextCursor LUAViewWidget::GetTextCursor() const
+    {
+        return m_gui->m_luaTextEdit->textCursor();
+    }
+
     bool LUAViewWidget::HasSelectedText() const
     {
         return m_gui->m_luaTextEdit->textCursor().hasSelection();
@@ -851,10 +861,9 @@ namespace LUAEditor
 
         if (operation.m_impl->m_isRegularExpression)
         {
-            QRegularExpression regEx(
-                operation.m_impl->m_searchString,
-                operation.m_impl->m_isCaseSensitiveSearch ? QRegularExpression::CaseInsensitiveOption
-                                                          : QRegularExpression::NoPatternOption);
+            QRegularExpression regEx;
+            regEx.setPatternOptions(operation.m_impl->m_isCaseSensitiveSearch ? QRegularExpression::NoPatternOption : QRegularExpression::CaseInsensitiveOption);
+            regEx.setPattern(operation.m_impl->m_searchString);
             operation.m_impl->m_cursor = m_gui->m_luaTextEdit->document()->find(regEx, operation.m_impl->m_cursor, static_cast<QTextDocument::FindFlag>(flags));
             if (!operation && operation.m_impl->m_wrap)
             {
@@ -864,7 +873,8 @@ namespace LUAEditor
                 }
                 else
                 {
-                    operation.m_impl->m_cursor.setPosition(m_gui->m_luaTextEdit->document()->characterCount() - 1);
+                    operation.m_impl->m_cursor = m_gui->m_luaTextEdit->textCursor();
+                    operation.m_impl->m_cursor.movePosition(QTextCursor::End);
                 }
                 operation.m_impl->m_cursor = m_gui->m_luaTextEdit->document()->find(regEx, operation.m_impl->m_cursor, static_cast<QTextDocument::FindFlag>(flags));
             }
@@ -880,7 +890,8 @@ namespace LUAEditor
                 }
                 else
                 {
-                    operation.m_impl->m_cursor.setPosition(m_gui->m_luaTextEdit->document()->characterCount() - 1);
+                    operation.m_impl->m_cursor = m_gui->m_luaTextEdit->textCursor();
+                    operation.m_impl->m_cursor.movePosition(QTextCursor::End);
                 }
                 operation.m_impl->m_cursor = m_gui->m_luaTextEdit->document()->find(operation.m_impl->m_searchString, operation.m_impl->m_cursor, static_cast<QTextDocument::FindFlag>(flags));
             }
@@ -1258,6 +1269,67 @@ namespace LUAEditor
 
         CreateStyleSheet();
         m_gui->m_luaTextEdit->repaint();
+    }
+
+    void LUAViewWidget::ShowFindMenu(bool show)
+    {
+        if (m_gui && m_gui->m_findReplaceWidget)
+        {
+            // Call the find widget's method to show only find field
+            static_cast<LUAEditorFindWidget*>(m_gui->m_findReplaceWidget)->SetShowFind(show);
+        }
+        if (show)
+        {
+            // Set focus to the find text field when showing the widget
+            QTimer::singleShot(0, [this]() {
+                if (m_gui && m_gui->m_findReplaceWidget)
+                {
+                    // Find the find text line edit and set focus to it
+                    auto findText = m_gui->m_findReplaceWidget->findChild<QLineEdit*>("lineEditFindText");
+                    if (findText)
+                    {
+                        findText->setFocus();
+                        findText->selectAll();
+                    }
+                }
+            });
+        }
+    }
+
+    void LUAViewWidget::ShowFindAndReplace(bool show)
+    {
+        if (m_gui && m_gui->m_findReplaceWidget)
+        {
+            // Call the find widget's method to show both find and replace fields
+            static_cast<LUAEditorFindWidget*>(m_gui->m_findReplaceWidget)->SetShowFindAndReplace(show);
+        }
+        if (show)
+        {
+            // Set focus to the replace text field when showing the widget
+            QTimer::singleShot(0, [this]() {
+                if (m_gui && m_gui->m_findReplaceWidget)
+                {
+                    // Find the replace text line edit and set focus to it
+                    auto replaceText = m_gui->m_findReplaceWidget->findChild<QLineEdit*>("lineEditReplaceText");
+                    if (replaceText)
+                    {
+                        replaceText->setFocus();
+                        replaceText->selectAll();
+                    }
+                }
+            });
+        }
+    }
+
+    void LUAViewWidget::SetMainWindow(class LUAEditorMainWindow* pLUAEditorMainWindow)
+    {
+        m_pLUAEditorMainWindow = pLUAEditorMainWindow;
+        m_gui->m_findReplaceWidget->SetMainWindow(m_pLUAEditorMainWindow);
+    }
+
+    LUAEditor::LUAEditorFindWidget* LUAViewWidget::GetFindWidget()
+    {
+        return m_gui->m_findReplaceWidget;
     }
 
     void LUAViewWidget::OnZoomIn()

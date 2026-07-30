@@ -140,20 +140,25 @@ namespace LUAEditor
             auto userData = block.userData();
             if (userData)
             {
-                auto blockInfo = static_cast<FindResultsBlockInfo*>(userData);
+                // Use dynamic_cast for safer type checking
+                auto blockInfo = dynamic_cast<FindResultsBlockInfo*>(userData);
+                
+                // Additional safety check to ensure valid pointer
+                if (blockInfo != nullptr) 
+                {
+                    // highlight the line
+                    QTextEdit::ExtraSelection selection;
+                    selection.format.setBackground(m_resultLineHighlightColor);
+                    selection.format.setProperty(QTextFormat::FullWidthSelection, true);
+                    selection.cursor = m_gui->m_resultsList->textCursor();
+                    selection.cursor.clearSelection();
+                    QList<QTextEdit::ExtraSelection> extraSelections;
+                    extraSelections.append(selection);
+                    m_gui->m_resultsList->setExtraSelections(extraSelections);
 
-                // highlight the line
-                QTextEdit::ExtraSelection selection;
-                selection.format.setBackground(m_resultLineHighlightColor);
-                selection.format.setProperty(QTextFormat::FullWidthSelection, true);
-                selection.cursor = m_gui->m_resultsList->textCursor();
-                selection.cursor.clearSelection();
-                QList<QTextEdit::ExtraSelection> extraSelections;
-                extraSelections.append(selection);
-                m_gui->m_resultsList->setExtraSelections(extraSelections);
-
-                emit ResultSelected(*blockInfo);
-                event->accept();
+                    emit ResultSelected(*blockInfo);
+                    event->accept();
+                }
             }
         }
     }
@@ -165,10 +170,16 @@ namespace LUAEditor
             auto userData = block.userData();
             if (userData)
             {
-                auto blockInfo = static_cast<FindResultsBlockInfo*>(userData);
-                if (blockInfo->m_assetName == assetName)
+                // Use dynamic_cast for safer type checking
+                auto blockInfo = dynamic_cast<FindResultsBlockInfo*>(userData);
+                
+                // Additional safety check to ensure valid pointer
+                if (blockInfo != nullptr) 
                 {
-                    blockInfo->m_assetId = assetId;
+                    if (blockInfo->m_assetName == assetName)
+                    {
+                        blockInfo->m_assetId = assetId;
+                    }
                 }
             }
         }

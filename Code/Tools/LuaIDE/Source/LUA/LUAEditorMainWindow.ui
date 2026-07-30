@@ -67,11 +67,13 @@
 				<addaction name="separator"/>
 				<addaction name="actionFind"/>
 				<addaction name="actionFindNext"/>
+				<addaction name="actionFindPrevious"/>
 				<addaction name="actionFindLocal"/>
 				<addaction name="actionFindLocalReverse"/>
 				<addaction name="actionFindInAllOpen"/>
 				<addaction name="actionReplace"/>
 				<addaction name="actionReplaceInAllOpen"/>
+				<addaction name="actionFindInFiles"/>
 				<addaction name="separator"/>
 				<addaction name="actionGoToLine"/>
 				<addaction name="actionFoldAll"/>
@@ -512,6 +514,7 @@
 			<addaction name="actionFindLocalReverse"/>
 			<addaction name="actionReplace"/>
 			<addaction name="actionReplaceInAllOpen"/>
+			<addaction name="actionFindInFiles"/>
 		</widget>
 		<widget class="QToolBar" name="sourceControlToolBar">
 			<property name="windowTitle">
@@ -1007,6 +1010,14 @@
 				<string>F3</string>
 			</property>
 		</action>
+		<action name="actionFindPrevious">
+			<property name="text">
+				<string>Find Previous</string>
+			</property>
+			<property name="shortcut">
+				<string>Shift+F3</string>
+			</property>
+		</action>
 		<action name="actionFindInAllOpen">
 			<property name="icon">
 				<iconset resource="../../../../Framework/AzToolsFramework/AzToolsFramework/UI/LegacyFramework/Resources/sharedResources.qrc">
@@ -1015,9 +1026,6 @@
 			</property>
 			<property name="text">
 				<string>Find in &amp;Open Files</string>
-			</property>
-			<property name="shortcut">
-				<string>Ctrl+Shift+F</string>
 			</property>
 		</action>
 		<action name="actionReplace">
@@ -1044,6 +1052,19 @@
 			</property>
 			<property name="shortcut">
 				<string>Ctrl+Shift+R</string>
+			</property>
+		</action>
+		<action name="actionFindInFiles">
+			<property name="icon">
+				<iconset resource="../../../../Framework/AzToolsFramework/AzToolsFramework/UI/LegacyFramework/Resources/sharedResources.qrc">
+					<normaloff>:/general/find_in_files</normaloff>:/general/find_in_files
+				</iconset>
+			</property>
+			<property name="text">
+				<string>Find in &amp;Files...</string>
+			</property>
+			<property name="shortcut">
+				<string>Ctrl+Shift+F</string>
 			</property>
 		</action>
 		<action name="actionFindLocal">
@@ -1649,6 +1670,22 @@
 			</hints>
 		</connection>
 		<connection>
+			<sender>actionFindPrevious</sender>
+			<signal>triggered()</signal>
+			<receiver>LUAEditorMainWindow</receiver>
+			<slot>OnEditMenuFindPrevious()</slot>
+			<hints>
+				<hint type="sourcelabel">
+					<x>-1</x>
+					<y>-1</y>
+				</hint>
+				<hint type="destinationlabel">
+					<x>298</x>
+					<y>488</y>
+				</hint>
+			</hints>
+		</connection>
+		<connection>
 			<sender>actionFindInAllOpen</sender>
 			<signal>triggered()</signal>
 			<receiver>LUAEditorMainWindow</receiver>
@@ -1685,6 +1722,22 @@
 			<signal>triggered()</signal>
 			<receiver>LUAEditorMainWindow</receiver>
 			<slot>OnEditMenuReplaceInAllOpen()</slot>
+			<hints>
+				<hint type="sourcelabel">
+					<x>-1</x>
+					<y>-1</y>
+				</hint>
+				<hint type="destinationlabel">
+					<x>298</x>
+					<y>488</y>
+				</hint>
+			</hints>
+		</connection>
+		<connection>
+			<sender>actionFindInFiles</sender>
+			<signal>triggered()</signal>
+			<receiver>LUAEditorMainWindow</receiver>
+			<slot>OnEditMenuFindInFiles()</slot>
 			<hints>
 				<hint type="sourcelabel">
 					<x>-1</x>
@@ -2053,6 +2106,8 @@
 		<slot>OnViewMenuResetZoom()</slot>
 		<slot>OnSourceControlMenuCheckOut()</slot>
 		<slot>OnEditMenuFind()</slot>
+		<slot>OnEditMenuFindNext()</slot>
+		<slot>OnEditMenuFindPrevious()</slot>
 		<slot>OnEditMenuFindInAllOpen()</slot>
 		<slot>OnEditMenuFindLocal()</slot>
 		<slot>OnEditMenuFindLocalReverse()</slot>

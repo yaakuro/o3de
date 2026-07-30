@@ -23,7 +23,6 @@
 #include "LUAEditorContextInterface.h"
 #include "LUAEditorViewMessages.h"
 #include "LUAEditorView.hxx"
-#include "LUAEditorFindDialog.hxx"
 
 #include <QMainWindow>
 
@@ -130,14 +129,16 @@ namespace LUAEditor
         void OnEditMenuPaste();
         void OnEditMenuFind();
         void OnEditMenuFindNext();
-        void OnEditMenuFindInAllOpen();
+        void OnEditMenuFindPrevious();
         void OnEditMenuFindLocal();
         void OnEditMenuFindLocalReverse();
         void OnEditMenuGoToLine();
         void OnEditMenuFoldAll();
         void OnEditMenuUnfoldAll();
         void OnEditMenuReplace();
+        void OnEditMenuFindInFiles();
         void OnEditMenuReplaceInAllOpen();
+        void OnEditMenuFindInAllOpen();
         void OnEditMenuSelectAll();
         void OnEditMenuSelectToBrace();
         void OnCommentSelectedBlock();
@@ -279,11 +280,6 @@ namespace LUAEditor
         bool SyncDocumentToContext(const AZStd::string& assetId);
 
     private:
-        //////////////////////////////////////////////////////////////////////////
-        // Find Dialog
-        LUAEditorFindDialog *m_ptrFindDialog;
-        //////////////////////////////////////////////////////////////////////////
-
         LUAEditorSettingsDialog* m_settingsDialog;
 
         QTabBar*  ResolveDockWidgetToTabBarAndIndex(LUADockWidget* pDockWidget, int& tabIndex);
