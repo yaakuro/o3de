@@ -18,6 +18,8 @@
 #include "LUABreakpointTrackerMessages.h"
 
 
+#include <QTextCursor>
+
 class QWidget;
 class QFocusEvent;
 
@@ -34,7 +36,8 @@ namespace AzToolsFramework
 namespace LUAEditor
 {
     struct FindOperationImpl;
-    
+    class LUAEditorFindWidget;
+
     // this is just a wrapper so we can override close events and so on
     class LUADockWidget 
         : public QDockWidget
@@ -87,6 +90,7 @@ namespace LUAEditor
         bool IsReadOnly() const;
         bool IsModified() const;
         void SelectAll();
+        QTextCursor GetTextCursor() const;
         bool HasSelectedText() const;
         QString GetSelectedText() const;
         void RemoveSelectedText();
@@ -117,6 +121,7 @@ namespace LUAEditor
             FindOperation(FindOperation&&);
             FindOperation& operator=(FindOperation&&);
             friend class LUAViewWidget;
+            friend class LUAEditorFindWidget;
             operator bool();
 
         private:
@@ -140,6 +145,10 @@ namespace LUAEditor
         void ResetZoom();
 
         void UpdateFont();
+        void ShowFindMenu(bool show);
+        void ShowFindAndReplace(bool show);
+        void SetMainWindow(class LUAEditorMainWindow* pLUAEditorMainWindow);
+        LUAEditor::LUAEditorFindWidget* GetFindWidget();
 
     signals:
         void gainedFocus();
@@ -163,6 +172,7 @@ namespace LUAEditor
         template<typename Callable>
         void FindMatchingBrace(Callable callable);
         void focusInEvent(QFocusEvent* pEvent) override;
+        //void focusOutEvent(QFocusEvent* pEvent) override;
 
         void OnPlainTextFocusChanged(bool hasFocus);
         void CreateStyleSheet();
@@ -193,7 +203,7 @@ namespace LUAEditor
         int m_zoomPercent{100}; //following visual studio, always zoom in or out 10% of current zoom value
 
         AZStd::mutex m_extraHighlightingMutex;
-
+        class LUAEditorMainWindow* m_pLUAEditorMainWindow = nullptr;
     private slots: 
         void OnBreakpointLineMoved(int fromLineNumber, int toLineNumber);
         void OnBreakpointLineDeleted(int removedLineNumber);

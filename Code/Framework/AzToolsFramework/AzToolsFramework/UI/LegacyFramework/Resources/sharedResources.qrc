@@ -41,6 +41,7 @@
         <file>Close_btn.png</file>
         <file>file browser.png</file>
     </qresource>
+
     <qresource prefix="/general">
         <file alias="hex_lua_icon">hex_lua.png</file>
         <file alias="breakpoints">breakpoints.png</file>
@@ -71,6 +72,13 @@
         <file alias="contract">eye.png</file>
         <file alias="expand">eye_close.png</file>
         <file alias="inspect_icon">drill_down_enabled.png</file>
+        <file alias="find_next">find_next.svg</file>
+        <file alias="find_previous">find_previous.svg</file>
+        <file alias="find_all">find_all.svg</file>
+        <file alias="replace_all">replace_all.svg</file>
+        <file alias="replace_with">replace_with.svg</file>
+        <file alias="burger_menu">burger_menu.svg</file>
+        <file alias="find_in_files">find_in_files.svg</file>
     </qresource>
     <qresource prefix="/debug">
         <file alias="arrow-curve-270">arrow-curve-270.png</file>

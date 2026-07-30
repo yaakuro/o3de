@@ -35,9 +35,6 @@ set(FILES
     Source/LUA/LUAEditorContextInterface.h
     Source/LUA/LUAEditorContextMessages.h
     Source/LUA/LUAEditorDebuggerMessages.h
-    Source/LUA/LUAEditorFindDialog.cpp
-    Source/LUA/LUAEditorFindDialog.hxx
-    Source/LUA/LUAEditorFindDialog.ui
     Source/LUA/LUAEditorSettingsDialog.cpp
     Source/LUA/LUAEditorSettingsDialog.hxx
     Source/LUA/LUAEditorSettingsDialog.ui
@@ -49,6 +46,9 @@ set(FILES
     Source/LUA/LUAEditorGoToLineDialog.cpp
     Source/LUA/LUAEditorGoToLineDialog.hxx
     Source/LUA/LUAEditorGoToLineDialog.ui
+    Source/LUA/LUAEditorFindInFilesDialog.cpp
+    Source/LUA/LUAEditorFindInFilesDialog.hxx
+    Source/LUA/LUAEditorFindInFilesDialog.ui
     Source/LUA/LUAEditorMainWindow.cpp
     Source/LUA/LUAEditorMainWindow.hxx
     Source/LUA/LUAEditorMainWindow.ui
@@ -61,6 +61,9 @@ set(FILES
     Source/LUA/LUAEditorView.cpp
     Source/LUA/LUAEditorView.hxx
     Source/LUA/LUAEditorView.ui
+    Source/LUA/LUAEditorFindWidget.cpp
+    Source/LUA/LUAEditorFindWidget.h
+    Source/LUA/LUAEditorFindWidget.ui
     Source/LUA/LUAEditorViewMessages.h
     Source/LUA/LUALocalsTrackerMessages.h
     Source/LUA/LUAStackTrackerMessages.h
