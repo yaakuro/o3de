@@ -49,6 +49,10 @@ namespace SkyAtmosphere
                 ->Field("AerialPerspectiveEnabled", &SkyAtmosphereComponentConfig::m_aerialPerspectiveEnabled)
                 ->Field("AerialDepthFactor", &SkyAtmosphereComponentConfig::m_aerialDepthFactor)
                 ->Field("MultipleScatteringEnabled", &SkyAtmosphereComponentConfig::m_multipleScatteringEnabled)
+                ->Field("SkyViewLutWidth", &SkyAtmosphereComponentConfig::m_skyViewLutWidth)
+                ->Field("SkyViewLutHeight", &SkyAtmosphereComponentConfig::m_skyViewLutHeight)
+                ->Field("VolumeLutDim", &SkyAtmosphereComponentConfig::m_volumeLutDim)
+                ->Field("VolumeKmPerSlice", &SkyAtmosphereComponentConfig::m_volumeKmPerSlice)
                 ;
         }
     }

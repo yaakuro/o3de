@@ -29,9 +29,7 @@
             ],
             "PassData": {
                 "$type": "ComputePassData",
-                "ThreadCountX": "32",
-                "ThreadCountY": "32",
-                "ThreadCountZ": "32",
+                "FullscreenDispatch": true,
                 "ShaderAsset": {
                     "FilePath": "Shaders/SkyAtmosphere/SkyVolumeLUT.shader"
                 },

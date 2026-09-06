@@ -43,7 +43,6 @@ option bool o_enableAerialPerspective = true;
 #include <Atom/Features/SrgSemantics.azsli>
 
 #define SKY_VOLUME_SLICE_COUNT 32
-#define SKY_VOLUME_KM_PER_SLICE 4.0
 
 ShaderResourceGroup PassSrg : SRG_PerPass_WithFallback
 {
@@ -122,6 +121,10 @@ ShaderResourceGroup PassSrg : SRG_PerPass_WithFallback
 
         float3 m_planetOrigin;
         float  m_multipleScatteringFactor;
+
+        float2 m_skyViewLutSize;    // resolution of the sky view LUT in texels
+        float  m_volumeKmPerSlice;  // depth step in km between sky volume LUT slices
+        float  m_pad2;              // unused, 16 byte alignment
     };
 
     Constants m_constants;
@@ -146,8 +149,8 @@ option enum class OpacityMode
 float fromUnitToSubUvs(float u, float resolution) { return (u + 0.5 / resolution) * (resolution / (resolution + 1.0)); }
 float fromSubUvsToUnit(float u, float resolution) { return (u - 0.5 / resolution) * (resolution / (resolution - 1.0)); }
 
-float AerialPerspectiveDepthToSlice(float depth) { return depth * (1.0 / SKY_VOLUME_KM_PER_SLICE); }
-float AerialPerspectiveSliceToDepth(float slice) { return slice * SKY_VOLUME_KM_PER_SLICE; }
+float AerialPerspectiveDepthToSlice(float depth) { return depth * (1.0 / PassSrg::m_constants.m_volumeKmPerSlice); }
+float AerialPerspectiveSliceToDepth(float slice) { return slice * PassSrg::m_constants.m_volumeKmPerSlice; }
 
 struct AtmosphereParameters
 {
@@ -319,7 +322,7 @@ MediumSampleRGB SampleMediumRGB(in float3 worldPos, in AtmosphereParameters Atmo
 void UvToSkyViewLutParams(in AtmosphereParameters Atmosphere, out float viewZenithCosAngle, out float lightViewCosAngle, in float viewHeight, in float2 uv)
 {
     // Constrain uvs to valid sub texel range (avoid zenith derivative issue making LUT usage visible)
-    uv = float2(fromSubUvsToUnit(uv.x, 192.0), fromSubUvsToUnit(uv.y, 108.0));
+    uv = float2(fromSubUvsToUnit(uv.x, PassSrg::m_constants.m_skyViewLutSize.x), fromSubUvsToUnit(uv.y, PassSrg::m_constants.m_skyViewLutSize.y));
 
     const float vHorizon = sqrt(viewHeight * viewHeight - Atmosphere.BottomRadius * Atmosphere.BottomRadius);
     const float cosBeta = vHorizon / viewHeight;
@@ -381,7 +384,7 @@ void SkyViewLutParamsToUv(AtmosphereParameters Atmosphere, in bool intersectGrou
     }
 
     // Constrain uvs to valid sub texel range (avoid zenith derivative issue making LUT usage visible)
-    uv = float2(fromUnitToSubUvs(uv.x, 192.0), fromUnitToSubUvs(uv.y, 108.0));
+    uv = float2(fromUnitToSubUvs(uv.x, PassSrg::m_constants.m_skyViewLutSize.x), fromUnitToSubUvs(uv.y, PassSrg::m_constants.m_skyViewLutSize.y));
 }
 
 bool MoveToAtmosphere(in AtmosphereParameters Atmosphere, inout float3 worldPos, inout float distanceToAtmosphere, in float3 worldDir, in float depth)

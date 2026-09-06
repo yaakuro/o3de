@@ -46,6 +46,12 @@ namespace SkyAtmosphere
         bool m_fastAerialPerspectiveEnabled;
         bool m_aerialPerspectiveEnabled;
         bool m_multipleScatteringEnabled;
+
+        //! LUT resolution params
+        uint16_t m_skyViewLutWidth = 192;
+        uint16_t m_skyViewLutHeight = 108;
+        uint16_t m_volumeLutDim = 32; // must be a multiple of 32
+        float m_volumeKmPerSlice = 4.0f;
     };
 
     class SkyAtmosphereFeatureProcessorInterface

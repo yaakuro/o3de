@@ -12,6 +12,7 @@
 
 #include <AzCore/RTTI/BehaviorContext.h>
 #include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/std/algorithm.h>
 
 #include <Atom/RPI.Public/Scene.h>
 
@@ -70,6 +71,10 @@ namespace SkyAtmosphere
                 SKY_VIRTUAL_PROPERTY(AerialDepthFactor, Factor)
                 SKY_VIRTUAL_PROPERTY(ShadowsEnabled, Enabled)
                 SKY_VIRTUAL_PROPERTY(MultipleScatteringEnabled, Enabled)
+                SKY_VIRTUAL_PROPERTY(SkyViewLutWidth, Width)
+                SKY_VIRTUAL_PROPERTY(SkyViewLutHeight, Height)
+                SKY_VIRTUAL_PROPERTY(VolumeLutDim, Dim)
+                SKY_VIRTUAL_PROPERTY(VolumeKmPerSlice, Km)
                 ;
 
         }
@@ -124,6 +129,14 @@ namespace SkyAtmosphere
         params.m_nearClip = m_configuration.m_nearClip;
         params.m_nearFadeDistance = m_configuration.m_nearFadeDistance;
         params.m_multipleScatteringEnabled = m_configuration.m_multipleScatteringEnabled;
+
+        // the sky volume LUT compute shader dispatches 32 threads per group along the depth axis,
+        // constrain the volume LUT dimension to multiples of 32 within a sane memory range
+        params.m_volumeLutDim = AZStd::clamp<uint16_t>(m_configuration.m_volumeLutDim, 32, 128);
+        params.m_volumeLutDim -= aznumeric_cast<uint16_t>(params.m_volumeLutDim % 32);
+        params.m_skyViewLutWidth = AZStd::clamp<uint16_t>(m_configuration.m_skyViewLutWidth, 64, 1024);
+        params.m_skyViewLutHeight = AZStd::clamp<uint16_t>(m_configuration.m_skyViewLutHeight, 64, 1024);
+        params.m_volumeKmPerSlice = AZStd::clamp(m_configuration.m_volumeKmPerSlice, 0.1f, 100.0f);
 
         // sun params
         params.m_sunEnabled = m_configuration.m_drawSun;
@@ -626,6 +639,54 @@ namespace SkyAtmosphere
     bool SkyAtmosphereComponentController::GetMultipleScatteringEnabled()
     {
         return m_configuration.m_multipleScatteringEnabled;
+    }
+
+
+    void SkyAtmosphereComponentController::SetSkyViewLutWidth(uint16_t width)
+    {
+        m_configuration.m_skyViewLutWidth = width;
+        OnParamUpdated();
+    }
+
+    uint16_t SkyAtmosphereComponentController::GetSkyViewLutWidth()
+    {
+        return m_configuration.m_skyViewLutWidth;
+    }
+
+
+    void SkyAtmosphereComponentController::SetSkyViewLutHeight(uint16_t height)
+    {
+        m_configuration.m_skyViewLutHeight = height;
+        OnParamUpdated();
+    }
+
+    uint16_t SkyAtmosphereComponentController::GetSkyViewLutHeight()
+    {
+        return m_configuration.m_skyViewLutHeight;
+    }
+
+
+    void SkyAtmosphereComponentController::SetVolumeLutDim(uint16_t dim)
+    {
+        m_configuration.m_volumeLutDim = dim;
+        OnParamUpdated();
+    }
+
+    uint16_t SkyAtmosphereComponentController::GetVolumeLutDim()
+    {
+        return m_configuration.m_volumeLutDim;
+    }
+
+
+    void SkyAtmosphereComponentController::SetVolumeKmPerSlice(float kmPerSlice)
+    {
+        m_configuration.m_volumeKmPerSlice = kmPerSlice;
+        OnParamUpdated();
+    }
+
+    float SkyAtmosphereComponentController::GetVolumeKmPerSlice()
+    {
+        return m_configuration.m_volumeKmPerSlice;
     }
 
 
