@@ -145,6 +145,24 @@ namespace SkyAtmosphere
             bindImageToSlot(m_skyVolumeLUTImage, AZ::Name("SkyVolumeLUTOutput"), AZ::Name("SkyVolumeLUTPass"));
             bindImageToSlot(m_skyVolumeLUTImage, AZ::Name("SkyVolumeLUTInput"), AZ::Name("SkyRayMarchingPass"));
         }
+
+        {
+            // create and bind multiple scattering approximation LUT
+            constexpr AZ::u32 width = 32;
+            constexpr AZ::u32 height = 32;
+            AZ::RHI::ImageDescriptor imageDesc = AZ::RHI::ImageDescriptor::Create2D(
+                AZ::RHI::ImageBindFlags::Color | AZ::RHI::ImageBindFlags::ShaderReadWrite, width, height,
+                AZ::RHI::Format::R16G16B16A16_FLOAT);
+            if (!m_multiScatteringLUTImage)
+            {
+                CreateImage(AZ::Name("SkyMultiScatteringLUTImageAttachment"), imageDesc, m_multiScatteringLUTImage);
+            }
+
+            bindImageToSlot(m_multiScatteringLUTImage, AZ::Name("SkyMultiScatteringLUTOutput"), AZ::Name("SkyMultiScatteringLUTPass"));
+            bindImageToSlot(m_multiScatteringLUTImage, AZ::Name("SkyMultiScatteringLUTInput"), AZ::Name("SkyViewLUTPass"));
+            bindImageToSlot(m_multiScatteringLUTImage, AZ::Name("SkyMultiScatteringLUTInput"), AZ::Name("SkyVolumeLUTPass"));
+            bindImageToSlot(m_multiScatteringLUTImage, AZ::Name("SkyMultiScatteringLUTInput"), AZ::Name("SkyRayMarchingPass"));
+        }
     }
 
     void SkyAtmospherePass::BuildShaderData()
@@ -199,6 +217,7 @@ namespace SkyAtmosphere
         m_skyTransmittanceLUTPass = FindChildPass(AZ::Name("SkyTransmittanceLUTPass"));
         m_skyViewLUTPass = FindChildPass(AZ::Name("SkyViewLUTPass"));
         m_skyVolumeLUTPass = FindChildPass(AZ::Name("SkyVolumeLUTPass"));
+        m_skyMultiScatteringLUTPass = FindChildPass(AZ::Name("SkyMultiScatteringLUTPass"));
 
         BindLUTs();
 
@@ -335,6 +354,8 @@ namespace SkyAtmosphere
         m_constants.m_nearClip = params.m_nearClip;
         m_constants.m_nearFadeDistance = params.m_nearFadeDistance;
         m_constants.m_aerialDepthFactor = params.m_aerialDepthFactor;
+        // 0 disables the multiple scattering approximation, 1 enables it
+        m_constants.m_multipleScatteringFactor = params.m_multipleScatteringEnabled ? 1.0f : 0.0f;
 
         // avoid oversampling (too many loops) causing device removal
         constexpr uint32_t maxSamples{ 64 };  
@@ -408,6 +429,7 @@ namespace SkyAtmosphere
         m_transmittanceLUTImage.reset();
         m_skyViewLUTImage.reset();
         m_skyVolumeLUTImage.reset();
+        m_multiScatteringLUTImage.reset();
         m_atmospherePassData.clear();
 
         Base::ResetInternal();

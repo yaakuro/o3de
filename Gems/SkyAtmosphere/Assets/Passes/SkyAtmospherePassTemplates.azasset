@@ -25,6 +25,10 @@
                 "Path": "Passes/SkyVolumeLUT.pass"
             },
             {
+                "Name": "SkyMultiScatteringLUTTemplate",
+                "Path": "Passes/SkyMultiScatteringLUT.pass"
+            },
+            {
                 "Name": "SkyRayMarchingTemplate",
                 "Path": "Passes/SkyRayMarching.pass"
             }

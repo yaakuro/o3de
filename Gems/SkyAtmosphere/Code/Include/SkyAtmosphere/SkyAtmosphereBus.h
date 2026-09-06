@@ -199,6 +199,14 @@ namespace SkyAtmosphere
         virtual void SetShadowsEnabled(bool enabled) = 0;
         //! @return whether shadows affect the atmosphere 
         virtual bool GetShadowsEnabled() = 0;
+
+        //! Enable the multiple scattering approximation of scattering orders 2 and above.
+        //! This brightens the sky and saturates the horizon colors, especially at sunset and sunrise,
+        //! at the cost of generating an additional small look up table.
+        //! @param enabled True to enable the multiple scattering approximation 
+        virtual void SetMultipleScatteringEnabled(bool enabled) = 0;
+        //! @return whether the multiple scattering approximation is enabled 
+        virtual bool GetMultipleScatteringEnabled() = 0;
     };
 
     typedef AZ::EBus<SkyAtmosphereRequests> SkyAtmosphereRequestBus;

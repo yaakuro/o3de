@@ -9,6 +9,7 @@
  // Based on https://github.com/sebh/UnrealEngineSkyAtmosphere by Sébastien Hillaire
 
 #define ENABLE_ATMOSPHERE_SHADOWS 0
+#define ENABLE_ATMOSPHERE_MULTI_SCATTERING_SAMPLING 0 // only the optical depth is used by this pass
 
 #include <Atom/Features/PostProcessing/FullscreenVertex.azsli>
 #include <SkyAtmosphereCommon.azsli>

@@ -1,0 +1,21 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "AZStd::vector<SeedInfo, allocator>",
+    "ClassData": [
+        {
+            "assetId": {
+                "guid": "{AE85CA83-EBDE-552C-97A3-57B41783B22A}"
+            },
+            "platformFlags": 255,
+            "pathHint": "passes/skyatmospherepasstemplates.azasset"
+        },
+        {
+            "assetId": {
+                "guid": "{3E1CF2D0-05DD-5228-B729-39ACFA5F402E}"
+            },
+            "platformFlags": 255,
+            "pathHint": "passes/skyatmospherepassrequest.azasset"
+        }
+    ]
+}

@@ -69,6 +69,7 @@ namespace SkyAtmosphere
                 SKY_VIRTUAL_PROPERTY(NearFadeDistance, Distance)
                 SKY_VIRTUAL_PROPERTY(AerialDepthFactor, Factor)
                 SKY_VIRTUAL_PROPERTY(ShadowsEnabled, Enabled)
+                SKY_VIRTUAL_PROPERTY(MultipleScatteringEnabled, Enabled)
                 ;
 
         }
@@ -122,6 +123,7 @@ namespace SkyAtmosphere
         params.m_shadowsEnabled = m_configuration.m_shadowsEnabled;
         params.m_nearClip = m_configuration.m_nearClip;
         params.m_nearFadeDistance = m_configuration.m_nearFadeDistance;
+        params.m_multipleScatteringEnabled = m_configuration.m_multipleScatteringEnabled;
 
         // sun params
         params.m_sunEnabled = m_configuration.m_drawSun;
@@ -612,6 +614,18 @@ namespace SkyAtmosphere
     bool SkyAtmosphereComponentController::GetShadowsEnabled()
     {
         return m_configuration.m_shadowsEnabled;
+    }
+
+
+    void SkyAtmosphereComponentController::SetMultipleScatteringEnabled(bool enabled)
+    {
+        m_configuration.m_multipleScatteringEnabled = enabled;
+        OnParamUpdated();
+    }
+
+    bool SkyAtmosphereComponentController::GetMultipleScatteringEnabled()
+    {
+        return m_configuration.m_multipleScatteringEnabled;
     }
 
 

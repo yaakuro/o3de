@@ -1,11 +1,11 @@
 {
     "Type": "JsonSerialization",
-    "Description": "This is the pass template that renders the sky volume LUT",
+    "Description": "This is the pass template that renders the sky multiple scattering approximation LUT",
     "Version": 1,
     "ClassName": "PassAsset",
     "ClassData": {
         "PassTemplate": {
-            "Name": "SkyVolumeLUTTemplate",
+            "Name": "SkyMultiScatteringLUTTemplate",
             "PassClass": "ComputePass",
             "Slots": [
                 {
@@ -15,25 +15,19 @@
                     "ShaderInputName": "m_transmittanceLUT"
                 },
                 {
-                    "Name": "SkyMultiScatteringLUTInput",
-                    "SlotType": "Input",
-                    "ScopeAttachmentUsage": "Shader",
-                    "ShaderInputName": "m_multiScatteringLUT"
-                },
-                {
-                    "Name": "SkyVolumeLUTOutput",
+                    "Name": "SkyMultiScatteringLUTOutput",
                     "SlotType": "Output",
                     "ScopeAttachmentUsage": "Shader",
-                    "ShaderInputName": "m_skyVolumeLUTOutput"
+                    "ShaderInputName": "m_multiScatteringLUTOutput"
                 }
             ],
             "PassData": {
                 "$type": "ComputePassData",
                 "ThreadCountX": "32",
                 "ThreadCountY": "32",
-                "ThreadCountZ": "32",
+                "ThreadCountZ": "64",
                 "ShaderAsset": {
-                    "FilePath": "Shaders/SkyAtmosphere/SkyVolumeLUT.shader"
+                    "FilePath": "Shaders/SkyAtmosphere/SkyMultiScatteringLUT.shader"
                 },
                 "BindViewSrg": true
             }

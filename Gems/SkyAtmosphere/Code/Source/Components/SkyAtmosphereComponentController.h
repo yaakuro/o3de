@@ -132,6 +132,9 @@ namespace SkyAtmosphere
         void SetShadowsEnabled(bool enabled) override;
         bool GetShadowsEnabled() override;
 
+        void SetMultipleScatteringEnabled(bool enabled) override;
+        bool GetMultipleScatteringEnabled() override;
+
         void OnParamUpdated();
 
         //! TransformNotificationBus
