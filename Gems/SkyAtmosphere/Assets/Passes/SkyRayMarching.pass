@@ -27,6 +27,12 @@
                     "ShaderInputName": "m_skyVolumeLUT"
                 },
                 {
+                    "Name": "SkyMultiScatteringLUTInput",
+                    "SlotType": "Input",
+                    "ScopeAttachmentUsage": "Shader",
+                    "ShaderInputName": "m_multiScatteringLUT"
+                },
+                {
                     "Name": "SpecularInputOutput",
                     "SlotType": "InputOutput",
                     "ScopeAttachmentUsage": "RenderTarget"

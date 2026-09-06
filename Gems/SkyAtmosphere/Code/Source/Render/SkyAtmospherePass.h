@@ -103,7 +103,7 @@ namespace SkyAtmosphere
             float m_aerialDepthFactor = 1.f;
 
             float m_planetOrigin[3] = {0.f, 0.f, 0.f};
-            float m_pad4 = 0.f;
+            float m_multipleScatteringFactor = 0.f;
         };
 
         SkyAtmosphereFeatureProcessorInterface::AtmosphereId m_atmosphereId;
@@ -111,6 +111,7 @@ namespace SkyAtmosphere
         ImageInstance m_transmittanceLUTImage;
         ImageInstance m_skyViewLUTImage;
         ImageInstance m_skyVolumeLUTImage;
+        ImageInstance m_multiScatteringLUTImage;
 
         AZ::RHI::ShaderInputNameIndex m_constantsIndexName = "m_constants";
 
@@ -125,6 +126,7 @@ namespace SkyAtmosphere
         AZ::RPI::Ptr<AZ::RPI::Pass> m_skyTransmittanceLUTPass = nullptr;
         AZ::RPI::Ptr<AZ::RPI::Pass> m_skyViewLUTPass = nullptr;
         AZ::RPI::Ptr<AZ::RPI::Pass> m_skyVolumeLUTPass = nullptr;
+        AZ::RPI::Ptr<AZ::RPI::Pass> m_skyMultiScatteringLUTPass = nullptr;
 
         AtmosphereGPUParams m_constants;
         SkyAtmosphereParams m_atmosphereParams;

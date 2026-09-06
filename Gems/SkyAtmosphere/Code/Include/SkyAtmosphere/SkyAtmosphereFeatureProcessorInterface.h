@@ -45,6 +45,7 @@ namespace SkyAtmosphere
         bool m_fastSkyEnabled;
         bool m_fastAerialPerspectiveEnabled;
         bool m_aerialPerspectiveEnabled;
+        bool m_multipleScatteringEnabled;
     };
 
     class SkyAtmosphereFeatureProcessorInterface

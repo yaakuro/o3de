@@ -72,6 +72,7 @@ namespace SkyAtmosphere
         bool m_fastAerialPerspectiveEnabled = true;
         bool m_aerialPerspectiveEnabled = true;
         bool m_shadowsEnabled = false;
+        bool m_multipleScatteringEnabled = false;
         uint8_t m_minSamples = 4;
         uint8_t m_maxSamples = 14;
     };

@@ -48,6 +48,7 @@ namespace SkyAtmosphere
                 ->Field("FastAerialPerspectiveEnabled", &SkyAtmosphereComponentConfig::m_fastAerialPerspectiveEnabled)
                 ->Field("AerialPerspectiveEnabled", &SkyAtmosphereComponentConfig::m_aerialPerspectiveEnabled)
                 ->Field("AerialDepthFactor", &SkyAtmosphereComponentConfig::m_aerialDepthFactor)
+                ->Field("MultipleScatteringEnabled", &SkyAtmosphereComponentConfig::m_multipleScatteringEnabled)
                 ;
         }
     }

@@ -195,6 +195,9 @@ namespace SkyAtmosphere
                         ->DataElement(AZ::Edit::UIHandlers::CheckBox, &SkyAtmosphereComponentConfig::m_shadowsEnabled,
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Enable shadows"),
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Enable sampling of shadows in atmosphere"))
+                        ->DataElement(AZ::Edit::UIHandlers::CheckBox, &SkyAtmosphereComponentConfig::m_multipleScatteringEnabled,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Multiple scattering"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Enable the multiple scattering approximation. Brightens the sky and saturates horizon colors, especially at sunset and sunrise."))
                         ->DataElement(AZ::Edit::UIHandlers::Default, &SkyAtmosphereComponentConfig::m_nearClip,
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Near clip"),
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Distance at which to start drawing atmosphere"))

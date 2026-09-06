@@ -1,0 +1,143 @@
+/*
+ * Copyright (c) Contributors to the Open 3D Engine Project.
+ * For complete copyright and license terms please see the LICENSE at the root of this distribution.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ */
+
+ // Based on https://github.com/sebh/UnrealEngineSkyAtmosphere by Sébastien Hillaire
+
+#define ENABLE_ATMOSPHERE_SHADOWS 0
+#define ENABLE_ATMOSPHERE_MULTI_SCATTERING_SAMPLING 0
+#include <viewsrg_all.srgi>
+#include <Atom/Features/SrgSemantics.azsli>
+#include <SkyAtmosphereCommon.azsli>
+
+// Generates the multiple scattering approximation LUT (32x32, parameterized over
+// the sun zenith angle and the altitude). The contribution of scattering orders 2
+// and above is accumulated using 64 stratified samples over the sphere and summed
+// with a geometric series (see Hillaire 2020, "A Scalable and Production Ready Sky
+// and Atmosphere Rendering Technique").
+groupshared float3 MultiScatAs1SharedMem[64];
+groupshared float3 LSharedMem[64];
+
+[numthreads(1, 1, 64)]
+void SkyMultiScatteringLUTCS(uint3 dispatchId : SV_DispatchThreadID)
+{
+    float2 pixPos = float2(dispatchId.xy) + 0.5f;
+    float2 uv = pixPos / float(MULTI_SCATTERING_LUT_RES);
+    uv = float2(fromSubUvsToUnit(uv.x, MULTI_SCATTERING_LUT_RES), fromSubUvsToUnit(uv.y, MULTI_SCATTERING_LUT_RES));
+
+    AtmosphereParameters Atmosphere = GetAtmosphereParameters();
+
+    float cosSunZenithAngle = uv.x * 2.0 - 1.0;
+    float3 sunDir = float3(0.0, sqrt(saturate(1.0 - cosSunZenithAngle * cosSunZenithAngle)), cosSunZenithAngle);
+    // We adjust again viewHeight according to PLANET_RADIUS_OFFSET_KM to be in a valid range.
+    float viewHeight = Atmosphere.BottomRadius + saturate(uv.y + PLANET_RADIUS_OFFSET_KM) * (Atmosphere.TopRadius - Atmosphere.BottomRadius - PLANET_RADIUS_OFFSET_KM);
+
+    float3 WorldPos = float3(0.0f, 0.0f, viewHeight);
+    float3 WorldDir = float3(0.0f, 0.0f, 1.0f);
+
+    const bool ground = true;
+    const float SampleCountIni = 20.0; // a minimum set of step is required for accuracy unfortunately
+    const float DepthBufferValue = -1.0;
+    const bool VariableSampleCount = false;
+    const bool MieRayPhase = false;
+
+    const float SphereSolidAngle = 4.0 * PI;
+    const float IsotropicPhase = 1.0 / SphereSolidAngle;
+
+    // Since there are many samples, it requires MULTI_SCATTERING_POWER_SERIE to be true for accuracy
+    // and to avoid divergences (see declaration for explanations)
+#define SQRTSAMPLECOUNT 8
+    const float sqrtSample = float(SQRTSAMPLECOUNT);
+    float i = 0.5f + float(dispatchId.z / SQRTSAMPLECOUNT);
+    float j = 0.5f + float(dispatchId.z - float((dispatchId.z / SQRTSAMPLECOUNT) * SQRTSAMPLECOUNT));
+    {
+        float randA = i / sqrtSample;
+        float randB = j / sqrtSample;
+        float theta = 2.0f * PI * randA;
+        float phi = acos(1.0f - 2.0f * randB);  // uniform distribution https://mathworld.wolfram.com/SpherePointPicking.html
+        float cosPhi = cos(phi);
+        float sinPhi = sin(phi);
+        float cosTheta = cos(theta);
+        float sinTheta = sin(theta);
+        WorldDir.x = cosTheta * sinPhi;
+        WorldDir.y = sinTheta * sinPhi;
+        WorldDir.z = cosPhi;
+        SingleScatteringResult result = IntegrateScatteredLuminance(pixPos, WorldPos, WorldDir, sunDir, Atmosphere, ground, SampleCountIni, DepthBufferValue, VariableSampleCount, MieRayPhase);
+
+        MultiScatAs1SharedMem[dispatchId.z] = result.MultiScatAs1 * SphereSolidAngle / (sqrtSample * sqrtSample);
+        LSharedMem[dispatchId.z] = result.L * SphereSolidAngle / (sqrtSample * sqrtSample);
+    }
+#undef SQRTSAMPLECOUNT
+
+    GroupMemoryBarrierWithGroupSync();
+
+    // 64 to 32
+    if (dispatchId.z < 32)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 32];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 32];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // 32 to 16
+    if (dispatchId.z < 16)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 16];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 16];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // 16 to 8 (16 is thread group min hardware size with intel, no sync required from there)
+    if (dispatchId.z < 8)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 8];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 8];
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (dispatchId.z < 4)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 4];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 4];
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (dispatchId.z < 2)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 2];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 2];
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (dispatchId.z < 1)
+    {
+        MultiScatAs1SharedMem[dispatchId.z] += MultiScatAs1SharedMem[dispatchId.z + 1];
+        LSharedMem[dispatchId.z] += LSharedMem[dispatchId.z + 1];
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if (dispatchId.z > 0)
+    {
+        return;
+    }
+
+    float3 MultiScatAs1 = MultiScatAs1SharedMem[0] * IsotropicPhase;        // Equation 7 f_ms
+    float3 InScatteredLuminance = LSharedMem[0] * IsotropicPhase;           // Equation 5 L_2ndOrder
+
+    // MultiScatAs1 represents the amount of luminance scattered as if the integral of scattered luminance over the sphere would be 1.
+    //  - 1st order of scattering: one can ray-march a straight path as usual over the sphere. That is InScatteredLuminance.
+    //  - 2nd order of scattering: the inscattered luminance is InScatteredLuminance at each of samples of fist order integration. Assuming a uniform phase function that is represented by MultiScatAs1,
+    //  - 3nd order of scattering: the inscattered luminance is (InScatteredLuminance * MultiScatAs1 * MultiScatAs1)
+    //  - etc.
+#if MULTI_SCATTERING_POWER_SERIE == 0
+    float3 MultiScatAs1SQR = MultiScatAs1 * MultiScatAs1;
+    float3 L = InScatteredLuminance * (1.0 + MultiScatAs1 + MultiScatAs1SQR + MultiScatAs1 * MultiScatAs1SQR + MultiScatAs1SQR * MultiScatAs1SQR);
+#else
+    // For a serie, sum_{n=0}^{n=+inf} = 1 + r + r^2 + r^3 + ... + r^n = 1 / (1.0 - r), see https://en.wikipedia.org/wiki/Geometric_series 
+    const float3 r = MultiScatAs1;
+    const float3 SumOfAllMultiScatteringEventsContribution = 1.0f / (1.0 - r);
+    float3 L = InScatteredLuminance * SumOfAllMultiScatteringEventsContribution; // Equation 10 Psi_ms
+#endif
+
+    PassSrg::m_multiScatteringLUTOutput[dispatchId.xy] = float4(L, 1.0f);
+}

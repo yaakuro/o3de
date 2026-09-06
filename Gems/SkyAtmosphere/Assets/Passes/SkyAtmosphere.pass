@@ -36,6 +36,20 @@
                     "Enabled": true
                 },
                 {
+                    "Name": "SkyMultiScatteringLUTPass",
+                    "TemplateName": "SkyMultiScatteringLUTTemplate",
+                    "Enabled": true,
+                    "Connections": [
+                        {
+                            "LocalSlot": "SkyTransmittanceLUTInput",
+                            "AttachmentRef": {
+                                "Pass": "SkyTransmittanceLUTPass",
+                                "Attachment": "SkyTransmittanceLUTOutput"
+                            }
+                        }
+                    ]
+                },
+                {
                     "Name": "SkyViewLUTPass",
                     "TemplateName": "SkyViewLUTTemplate",
                     "Enabled": true,
@@ -45,6 +59,13 @@
                             "AttachmentRef": {
                                 "Pass": "SkyTransmittanceLUTPass",
                                 "Attachment": "SkyTransmittanceLUTOutput"
+                            }
+                        },
+                        {
+                            "LocalSlot": "SkyMultiScatteringLUTInput",
+                            "AttachmentRef": {
+                                "Pass": "SkyMultiScatteringLUTPass",
+                                "Attachment": "SkyMultiScatteringLUTOutput"
                             }
                         }
                     ]
@@ -59,6 +80,13 @@
                             "AttachmentRef": {
                                 "Pass": "SkyTransmittanceLUTPass",
                                 "Attachment": "SkyTransmittanceLUTOutput"
+                            }
+                        },
+                        {
+                            "LocalSlot": "SkyMultiScatteringLUTInput",
+                            "AttachmentRef": {
+                                "Pass": "SkyMultiScatteringLUTPass",
+                                "Attachment": "SkyMultiScatteringLUTOutput"
                             }
                         }
                     ]
@@ -87,6 +115,13 @@
                             "AttachmentRef": {
                                 "Pass": "SkyVolumeLUTPass",
                                 "Attachment": "SkyVolumeLUTOutput"
+                            }
+                        },
+                        {
+                            "LocalSlot": "SkyMultiScatteringLUTInput",
+                            "AttachmentRef": {
+                                "Pass": "SkyMultiScatteringLUTPass",
+                                "Attachment": "SkyMultiScatteringLUTOutput"
                             }
                         },
                         {
