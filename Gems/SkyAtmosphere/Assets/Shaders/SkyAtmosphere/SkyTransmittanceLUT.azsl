@@ -11,6 +11,8 @@
 #define ENABLE_ATMOSPHERE_SHADOWS 0
 #define ENABLE_ATMOSPHERE_MULTI_SCATTERING_SAMPLING 0 // only the optical depth is used by this pass
 
+// Declares ViewSrg, which is referenced by GetWorldPositionFromDepth() in SkyAtmosphereCommon.azsli
+#include <viewsrg_all.srgi>
 #include <Atom/Features/PostProcessing/FullscreenVertex.azsli>
 #include <SkyAtmosphereCommon.azsli>
 
