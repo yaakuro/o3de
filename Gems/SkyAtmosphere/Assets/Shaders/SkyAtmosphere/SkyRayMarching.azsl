@@ -23,7 +23,7 @@ struct RayMarchPixelOutputStruct
     float4 m_reflection : SV_Target1;
 };
 
-float3 GetSunLuminance(in float3 worldPos, in float3 worldDir, in float planetRadius)
+float3 GetSunLuminance(in float3 worldPos, in float3 worldDir, in float planetRadius, in AtmosphereParameters Atmosphere)
 {
     if(o_enableSun)
     {
@@ -36,15 +36,25 @@ float3 GetSunLuminance(in float3 worldPos, in float3 worldDir, in float planetRa
             {
                 const float d = (1.0 - angle) / (1.0 - sunAngle) ;
                 const float falloff = pow(1.0 - d, PassSrg::m_constants.m_sunFalloffFactor);
+
+                // Tint the sun disk by the atmospheric transmittance between the sun and the
+                // camera position so the disk reddens and dims naturally at sunset and sunrise.
+                const float viewHeight = length(worldPos);
+                const float3 upVector = worldPos / viewHeight;
+                const float sunZenithCosAngle = dot(PassSrg::m_constants.m_sunDirection, upVector);
+                float2 uv;
+                LutTransmittanceParamsToUv(Atmosphere, viewHeight, sunZenithCosAngle, uv);
+                const float3 transmittanceToSun = PassSrg::m_transmittanceLUT.SampleLevel(PassSrg::LinearSampler, uv, 0).rgb;
+
                 if(PassSrg::m_constants.m_sunFalloffFactor <= 1.0)
                 {
                     // crisp sun disk
-                    return lerp(PassSrg::m_constants.m_sunLimbColor, PassSrg::m_constants.m_sunColor, falloff);
+                    return lerp(PassSrg::m_constants.m_sunLimbColor, PassSrg::m_constants.m_sunColor, falloff) * transmittanceToSun;
                 }
                 else
                 {
                     // soft sun disk
-                    return lerp(PassSrg::m_constants.m_sunLimbColor, PassSrg::m_constants.m_sunColor, falloff) * falloff;
+                    return lerp(PassSrg::m_constants.m_sunLimbColor, PassSrg::m_constants.m_sunColor, falloff) * falloff * transmittanceToSun;
                 }
             }
         }
@@ -103,7 +113,7 @@ RayMarchPixelOutputStruct RayMarchingPS(VSOutput Input, in uint sampleIndex : SV
     if (depth == 0.0f)
     {
         // nothing is obstructing, add any luminance from the sun
-        luminance = GetSunLuminance(cameraPlanetPosKm, worldDir, Atmosphere.BottomRadius);
+        luminance = GetSunLuminance(cameraPlanetPosKm, worldDir, Atmosphere.BottomRadius, Atmosphere);
 
         if(o_enableFastSky)
         {
