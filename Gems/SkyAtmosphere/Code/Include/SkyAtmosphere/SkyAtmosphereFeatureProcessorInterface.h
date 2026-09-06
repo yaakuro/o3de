@@ -52,6 +52,7 @@ namespace SkyAtmosphere
         uint16_t m_skyViewLutHeight = 108;
         uint16_t m_volumeLutDim = 32; // must be a multiple of 32
         float m_volumeKmPerSlice = 4.0f;
+        float m_exposure = 20.0f;
     };
 
     class SkyAtmosphereFeatureProcessorInterface

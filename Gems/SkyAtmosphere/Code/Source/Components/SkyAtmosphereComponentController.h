@@ -147,6 +147,9 @@ namespace SkyAtmosphere
         void SetVolumeKmPerSlice(float kmPerSlice) override;
         float GetVolumeKmPerSlice() override;
 
+        void SetExposure(float exposure) override;
+        float GetExposure() override;
+
         void OnParamUpdated();
 
         //! TransformNotificationBus

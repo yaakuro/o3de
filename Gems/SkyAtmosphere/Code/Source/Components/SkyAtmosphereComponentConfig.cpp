@@ -53,6 +53,7 @@ namespace SkyAtmosphere
                 ->Field("SkyViewLutHeight", &SkyAtmosphereComponentConfig::m_skyViewLutHeight)
                 ->Field("VolumeLutDim", &SkyAtmosphereComponentConfig::m_volumeLutDim)
                 ->Field("VolumeKmPerSlice", &SkyAtmosphereComponentConfig::m_volumeKmPerSlice)
+                ->Field("Exposure", &SkyAtmosphereComponentConfig::m_exposure)
                 ;
         }
     }

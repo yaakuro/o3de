@@ -240,6 +240,12 @@ namespace SkyAtmosphere
         virtual void SetVolumeKmPerSlice(float kmPerSlice) = 0;
         //! @return the depth step between sky volume LUT slices in kilometers
         virtual float GetVolumeKmPerSlice() = 0;
+
+        //! Set the luminance scale applied to the final sky output
+        //! @param exposure The luminance scale of the sky
+        virtual void SetExposure(float exposure) = 0;
+        //! @return the luminance scale applied to the final sky output
+        virtual float GetExposure() = 0;
     };
 
     typedef AZ::EBus<SkyAtmosphereRequests> SkyAtmosphereRequestBus;

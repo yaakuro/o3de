@@ -107,7 +107,7 @@ namespace SkyAtmosphere
 
             float m_skyViewLutSize[2] = {192.f, 108.f};
             float m_volumeKmPerSlice = 4.f;
-            float m_pad2 = 0.f; // unused, 16 byte alignment
+            float m_exposure = 20.f;
         };
 
         SkyAtmosphereFeatureProcessorInterface::AtmosphereId m_atmosphereId;

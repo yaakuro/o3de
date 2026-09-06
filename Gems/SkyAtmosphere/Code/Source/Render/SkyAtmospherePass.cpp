@@ -358,6 +358,7 @@ namespace SkyAtmosphere
         m_constants.m_skyViewLutSize[0] = aznumeric_cast<float>(params.m_skyViewLutWidth);
         m_constants.m_skyViewLutSize[1] = aznumeric_cast<float>(params.m_skyViewLutHeight);
         m_constants.m_volumeKmPerSlice = params.m_volumeKmPerSlice;
+        m_constants.m_exposure = params.m_exposure;
 
         // the sky view and sky volume LUT images are created with the configured resolutions,
         // if the resolutions changed the images must be recreated and the passes rebound
