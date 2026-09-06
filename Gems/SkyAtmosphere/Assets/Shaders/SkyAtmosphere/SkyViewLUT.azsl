@@ -30,10 +30,9 @@ SkyViewLutPSOutput SkyViewLutPS(VSOutput Input)
     const float worldScale = 0.001;
     const float depth = 0.0;
 
-    float2 ndcPos = float2(Input.m_texCoord.x, 1.0 - Input.m_texCoord.y) * 2.0 - 1.0;
-    float4 positionWS = mul(ViewSrg::m_viewProjectionInverseMatrix, float4(ndcPos, depth, 1.0));
-    float3 worldDir = normalize(positionWS.xyz / positionWS.w - ViewSrg::m_worldPosition);
-    const float worldDepthKm = length(worldDir);
+    // camera relative world space direction to the pixel, reconstructed in view space for precision
+    // (only the direction is needed, sky view pixels have no depth)
+    float3 worldDir = normalize(GetWorldPositionFromDepth(Input.m_texCoord, depth));
     float3 worldPosKm = ViewSrg::m_worldPosition * worldScale - Atmosphere.PlanetOrigin;
 
     float viewHeight = length(worldPosKm);
@@ -68,7 +67,9 @@ SkyViewLutPSOutput SkyViewLutPS(VSOutput Input)
         viewZenithCosAngle);
 
     float distanceToAtmosphere = 1.0;
-    if (!MoveToAtmosphere(Atmosphere, worldPosKm, distanceToAtmosphere, worldDir, worldDepthKm))
+    // the original implementation passed the length of the normalized direction (1 km) here,
+    // which effectively disables the "ray misses the atmosphere" early out for the LUT
+    if (!MoveToAtmosphere(Atmosphere, worldPosKm, distanceToAtmosphere, worldDir, 1.0))
     {
         // ray does not intersect the atmosphere
         OUT.m_skyViewLut = float4(0.0, 0.0, 0.0, 1.0);

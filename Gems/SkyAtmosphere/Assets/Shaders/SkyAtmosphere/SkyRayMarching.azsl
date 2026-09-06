@@ -83,10 +83,8 @@ RayMarchPixelOutputStruct RayMarchingPS(VSOutput Input, in uint sampleIndex : SV
     float2 screenCoords = Input.m_position.xy;
     float depth = PassSrg::m_depth.Load(screenCoords, sampleIndex).r;
 
-    float2 ndcPos = float2(Input.m_texCoord.x, 1.0f - Input.m_texCoord.y) * 2.0f - 1.0f;
-    float4 projectedPos = float4(ndcPos, depth, 1.0f);
-    float4 positionWS = mul(ViewSrg::m_viewProjectionInverseMatrix, projectedPos);
-    float3 viewToPosition =  positionWS.xyz / positionWS.w - ViewSrg::m_worldPosition;
+    // camera relative world space offset to the pixel, reconstructed in view space for precision
+    const float3 viewToPosition = GetWorldPositionFromDepth(Input.m_texCoord, depth);
     const float worldDepth = length(viewToPosition);
     if (worldDepth < PassSrg::m_constants.m_nearClip)
     {

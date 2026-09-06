@@ -152,6 +152,20 @@ float fromSubUvsToUnit(float u, float resolution) { return (u - 0.5 / resolution
 float AerialPerspectiveDepthToSlice(float depth) { return depth * (1.0 / PassSrg::m_constants.m_volumeKmPerSlice); }
 float AerialPerspectiveSliceToDepth(float slice) { return slice * PassSrg::m_constants.m_volumeKmPerSlice; }
 
+// Reconstructs the world space offset from the camera to a pixel (direction * distance) from its
+// texture coordinate and hardware depth buffer value. The reconstruction stops in view space and
+// is rotated into world space with the view to world rotation only, which avoids the float32
+// precision loss of unprojecting through world space (m_viewProjectionInverseMatrix) and
+// subtracting the camera world position in very large (planet sized) scenes.
+// Note: the same composition as the skybox vertex shader (viewMatrixInverse * projectionMatrixInverse).
+float3 GetWorldPositionFromDepth(in float2 texCoord, in float depth)
+{
+    const float2 ndcPos = float2(texCoord.x, 1.0 - texCoord.y) * 2.0 - 1.0;
+    float4 viewPosition = mul(ViewSrg::m_projectionMatrixInverse, float4(ndcPos, depth, 1.0));
+    viewPosition /= viewPosition.w;
+    return mul((float3x3)ViewSrg::m_viewMatrixInverse, viewPosition.xyz);
+}
+
 struct AtmosphereParameters
 {
     // Radius of the planet (center to ground)
