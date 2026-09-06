@@ -207,6 +207,39 @@ namespace SkyAtmosphere
         virtual void SetMultipleScatteringEnabled(bool enabled) = 0;
         //! @return whether the multiple scattering approximation is enabled 
         virtual bool GetMultipleScatteringEnabled() = 0;
+
+        //! Set the width in texels of the sky view look up table. Higher values give a more
+        //! detailed sky at the cost of generating a bigger look up table every frame.
+        //! The value is clamped to the range [64, 1024]
+        //! @param width The width of the sky view LUT in texels
+        virtual void SetSkyViewLutWidth(uint16_t width) = 0;
+        //! @return the width of the sky view LUT in texels
+        virtual uint16_t GetSkyViewLutWidth() = 0;
+
+        //! Set the height in texels of the sky view look up table. Higher values give a more
+        //! detailed sky at the cost of generating a bigger look up table every frame.
+        //! The value is clamped to the range [64, 1024]
+        //! @param height The height of the sky view LUT in texels
+        virtual void SetSkyViewLutHeight(uint16_t height) = 0;
+        //! @return the height of the sky view LUT in texels
+        virtual uint16_t GetSkyViewLutHeight() = 0;
+
+        //! Set the dimension in texels of the sky volume look up table 3D texture, which must be a
+        //! multiple of 32. Higher values give smoother aerial perspective at the cost of more memory.
+        //! The value is clamped to the range [32, 128]
+        //! @param dim The dimension of the sky volume LUT in texels
+        virtual void SetVolumeLutDim(uint16_t dim) = 0;
+        //! @return the dimension of the sky volume LUT in texels
+        virtual uint16_t GetVolumeLutDim() = 0;
+
+        //! Set the depth step in kilometers between the slices of the sky volume look up table,
+        //! which controls the range over which aerial perspective is approximated. With the default
+        //! 32 slices, a value of 4 covers 128 km. Values larger than the atmosphere height have no
+        //! additional effect.
+        //! @param kmPerSlice The depth step between slices in kilometers
+        virtual void SetVolumeKmPerSlice(float kmPerSlice) = 0;
+        //! @return the depth step between sky volume LUT slices in kilometers
+        virtual float GetVolumeKmPerSlice() = 0;
     };
 
     typedef AZ::EBus<SkyAtmosphereRequests> SkyAtmosphereRequestBus;

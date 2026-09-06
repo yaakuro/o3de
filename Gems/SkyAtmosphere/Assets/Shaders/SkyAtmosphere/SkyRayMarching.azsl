@@ -166,11 +166,11 @@ RayMarchPixelOutputStruct RayMarchingPS(VSOutput Input, in uint sampleIndex : SV
     {
         float slice = AerialPerspectiveDepthToSlice(worldDepthKm - distanceToAtmosphereKm);
         float weight = 1.0;
-        if (slice < 0.5 && Atmosphere.TopRadius > SKY_VOLUME_KM_PER_SLICE * SKY_VOLUME_SLICE_COUNT)
+        if (slice < 0.5 && Atmosphere.TopRadius > PassSrg::m_constants.m_volumeKmPerSlice * SKY_VOLUME_SLICE_COUNT)
         {
-            // Note: if your atmosphere is small but your SKY_VOLUME_KM_PER_SLICE is large
+            // Note: if your atmosphere is small but your volume km per slice is large
             // then fading out the nearest slice might remove the aerial perspective entirely
-            // so you may want to make SKY_VOLUME_KM_PER_SLICE smaller, or remove the fade
+            // so you may want to make the km per slice smaller, or remove the fade
             weight = saturate(slice * 2.0);
             slice = 0.5;
         }

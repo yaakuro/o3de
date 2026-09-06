@@ -75,5 +75,15 @@ namespace SkyAtmosphere
         bool m_multipleScatteringEnabled = false;
         uint8_t m_minSamples = 4;
         uint8_t m_maxSamples = 14;
+
+        //! LUT resolution params
+        //! width of the sky view LUT in texels
+        uint16_t m_skyViewLutWidth = 192;
+        //! height of the sky view LUT in texels
+        uint16_t m_skyViewLutHeight = 108;
+        //! dimension of the sky volume LUT 3D texture in texels, must be a multiple of 32
+        uint16_t m_volumeLutDim = 32;
+        //! depth step in kilometers between sky volume LUT slices, controls the range of the aerial perspective
+        float m_volumeKmPerSlice = 4.0f;
     };
 } // namespace AZ::Render

@@ -216,6 +216,26 @@ namespace SkyAtmosphere
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Maximum number of samples when tracing"))
                             ->Attribute(AZ::Edit::Attributes::Min, 1)
                             ->Attribute(AZ::Edit::Attributes::Max, 64)
+                        ->DataElement(AZ::Edit::UIHandlers::Slider, &SkyAtmosphereComponentConfig::m_skyViewLutWidth,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Sky view LUT width"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Width of the sky view look up table in texels. Higher values give a more detailed sky."))
+                            ->Attribute(AZ::Edit::Attributes::Min, 64)
+                            ->Attribute(AZ::Edit::Attributes::Max, 1024)
+                        ->DataElement(AZ::Edit::UIHandlers::Slider, &SkyAtmosphereComponentConfig::m_skyViewLutHeight,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Sky view LUT height"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Height of the sky view look up table in texels. Higher values give a more detailed sky."))
+                            ->Attribute(AZ::Edit::Attributes::Min, 64)
+                            ->Attribute(AZ::Edit::Attributes::Max, 1024)
+                        ->DataElement(AZ::Edit::UIHandlers::Slider, &SkyAtmosphereComponentConfig::m_volumeLutDim,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Sky volume LUT dimension"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Dimension of the sky volume look up table 3D texture in texels, must be a multiple of 32. Higher values give smoother aerial perspective at the cost of more memory."))
+                            ->Attribute(AZ::Edit::Attributes::Min, 32)
+                            ->Attribute(AZ::Edit::Attributes::Max, 128)
+                        ->DataElement(AZ::Edit::UIHandlers::Slider, &SkyAtmosphereComponentConfig::m_volumeKmPerSlice,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Sky volume km per slice"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Depth step in kilometers between the slices of the sky volume look up table, controls the range of the aerial perspective."))
+                            ->Attribute(AZ::Edit::Attributes::Min, 0.1f)
+                            ->Attribute(AZ::Edit::Attributes::Max, 100.0f)
                         ->EndGroup()
                     ;
             }

@@ -117,8 +117,8 @@ namespace SkyAtmosphere
 
         {
             // create and bind sky view LUT
-            constexpr AZ::u32 width = 192;
-            constexpr AZ::u32 height = 108;
+            const AZ::u32 width = m_atmosphereParams.m_skyViewLutWidth;
+            const AZ::u32 height = m_atmosphereParams.m_skyViewLutHeight;
             AZ::RHI::ImageDescriptor imageDesc = AZ::RHI::ImageDescriptor::Create2D(
                 AZ::RHI::ImageBindFlags::Color | AZ::RHI::ImageBindFlags::ShaderReadWrite, width, height, AZ::RHI::Format::R11G11B10_FLOAT);
             if (!m_skyViewLUTImage)
@@ -132,11 +132,10 @@ namespace SkyAtmosphere
 
         {
             // create and bind sky volume LUT
-            constexpr AZ::u32 width = 32;
-            constexpr AZ::u32 height = 32;
-            constexpr AZ::u32 depth = 32;
+            const AZ::u32 volumeDim = m_atmosphereParams.m_volumeLutDim;
             AZ::RHI::ImageDescriptor imageDesc = AZ::RHI::ImageDescriptor::Create3D(
-                AZ::RHI::ImageBindFlags::Color | AZ::RHI::ImageBindFlags::ShaderReadWrite, width, height, depth, AZ::RHI::Format::R16G16B16A16_FLOAT);
+                AZ::RHI::ImageBindFlags::Color | AZ::RHI::ImageBindFlags::ShaderReadWrite, volumeDim, volumeDim, volumeDim,
+                AZ::RHI::Format::R16G16B16A16_FLOAT);
             if (!m_skyVolumeLUTImage)
             {
                 CreateImage(AZ::Name("SkyVolumeLUTImageAttachment"), imageDesc, m_skyVolumeLUTImage);
@@ -350,12 +349,27 @@ namespace SkyAtmosphere
         params.m_sunDirection.GetNormalized().StoreToFloat3(m_constants.m_sunDirection);
         params.m_planetOrigin.StoreToFloat3(m_constants.m_planetOrigin);
 
-        m_constants.m_sunShadowFarClip = params.m_sunShadowsFarClip * 0.001f; // scale to km 
+        m_constants.m_sunShadowFarClip = params.m_sunShadowsFarClip * 0.001f; // scale to km
         m_constants.m_nearClip = params.m_nearClip;
         m_constants.m_nearFadeDistance = params.m_nearFadeDistance;
         m_constants.m_aerialDepthFactor = params.m_aerialDepthFactor;
         // 0 disables the multiple scattering approximation, 1 enables it
         m_constants.m_multipleScatteringFactor = params.m_multipleScatteringEnabled ? 1.0f : 0.0f;
+        m_constants.m_skyViewLutSize[0] = aznumeric_cast<float>(params.m_skyViewLutWidth);
+        m_constants.m_skyViewLutSize[1] = aznumeric_cast<float>(params.m_skyViewLutHeight);
+        m_constants.m_volumeKmPerSlice = params.m_volumeKmPerSlice;
+
+        // the sky view and sky volume LUT images are created with the configured resolutions,
+        // if the resolutions changed the images must be recreated and the passes rebound
+        if (params.m_skyViewLutWidth != m_atmosphereParams.m_skyViewLutWidth ||
+            params.m_skyViewLutHeight != m_atmosphereParams.m_skyViewLutHeight ||
+            params.m_volumeLutDim != m_atmosphereParams.m_volumeLutDim)
+        {
+            m_skyViewLUTImage.reset();
+            m_skyVolumeLUTImage.reset();
+            QueueForBuildAndInitialization();
+            m_enableSkyTransmittanceLUTPass = true;
+        }
 
         // avoid oversampling (too many loops) causing device removal
         constexpr uint32_t maxSamples{ 64 };  

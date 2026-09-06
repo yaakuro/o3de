@@ -104,6 +104,10 @@ namespace SkyAtmosphere
 
             float m_planetOrigin[3] = {0.f, 0.f, 0.f};
             float m_multipleScatteringFactor = 0.f;
+
+            float m_skyViewLutSize[2] = {192.f, 108.f};
+            float m_volumeKmPerSlice = 4.f;
+            float m_pad2 = 0.f; // unused, 16 byte alignment
         };
 
         SkyAtmosphereFeatureProcessorInterface::AtmosphereId m_atmosphereId;

@@ -56,7 +56,7 @@ float4 GetSkyVolumeAtPosition(uint3 position)
     {
         // move ray marching start up to top atmosphere.
         float distanceToAtmosphereKm = 0.0;
-        const float largeDepth = cameraHeightKm + Atmosphere.TopRadius + SKY_VOLUME_KM_PER_SLICE * SKY_VOLUME_SLICE_COUNT;
+        const float largeDepth = cameraHeightKm + Atmosphere.TopRadius + PassSrg::m_constants.m_volumeKmPerSlice * SKY_VOLUME_SLICE_COUNT;
         if (!MoveToAtmosphere(Atmosphere, cameraPlanetPosKm, distanceToAtmosphereKm, worldDir, largeDepth))
         {
             // ray is not intersecting the atmosphere
@@ -65,7 +65,7 @@ float4 GetSkyVolumeAtPosition(uint3 position)
 
         // Avoid changing trace depth for small atmospheres 
         // eventually we should adjust the volume based on the frustum and atmosphere size
-        if (Atmosphere.TopRadius > SKY_VOLUME_KM_PER_SLICE * SKY_VOLUME_SLICE_COUNT)
+        if (Atmosphere.TopRadius > PassSrg::m_constants.m_volumeKmPerSlice * SKY_VOLUME_SLICE_COUNT)
         {
             if (maxTraceDepthKm < distanceToAtmosphereKm)
             {

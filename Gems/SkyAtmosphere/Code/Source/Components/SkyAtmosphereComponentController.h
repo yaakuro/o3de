@@ -135,6 +135,18 @@ namespace SkyAtmosphere
         void SetMultipleScatteringEnabled(bool enabled) override;
         bool GetMultipleScatteringEnabled() override;
 
+        void SetSkyViewLutWidth(uint16_t width) override;
+        uint16_t GetSkyViewLutWidth() override;
+
+        void SetSkyViewLutHeight(uint16_t height) override;
+        uint16_t GetSkyViewLutHeight() override;
+
+        void SetVolumeLutDim(uint16_t dim) override;
+        uint16_t GetVolumeLutDim() override;
+
+        void SetVolumeKmPerSlice(float kmPerSlice) override;
+        float GetVolumeKmPerSlice() override;
+
         void OnParamUpdated();
 
         //! TransformNotificationBus
