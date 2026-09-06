@@ -75,6 +75,7 @@ namespace SkyAtmosphere
                 SKY_VIRTUAL_PROPERTY(SkyViewLutHeight, Height)
                 SKY_VIRTUAL_PROPERTY(VolumeLutDim, Dim)
                 SKY_VIRTUAL_PROPERTY(VolumeKmPerSlice, Km)
+                SKY_VIRTUAL_PROPERTY(Exposure, Exposure)
                 ;
 
         }
@@ -137,6 +138,7 @@ namespace SkyAtmosphere
         params.m_skyViewLutWidth = AZStd::clamp<uint16_t>(m_configuration.m_skyViewLutWidth, 64, 1024);
         params.m_skyViewLutHeight = AZStd::clamp<uint16_t>(m_configuration.m_skyViewLutHeight, 64, 1024);
         params.m_volumeKmPerSlice = AZStd::clamp(m_configuration.m_volumeKmPerSlice, 0.1f, 100.0f);
+        params.m_exposure = m_configuration.m_exposure;
 
         // sun params
         params.m_sunEnabled = m_configuration.m_drawSun;
@@ -687,6 +689,18 @@ namespace SkyAtmosphere
     float SkyAtmosphereComponentController::GetVolumeKmPerSlice()
     {
         return m_configuration.m_volumeKmPerSlice;
+    }
+
+
+    void SkyAtmosphereComponentController::SetExposure(float exposure)
+    {
+        m_configuration.m_exposure = exposure;
+        OnParamUpdated();
+    }
+
+    float SkyAtmosphereComponentController::GetExposure()
+    {
+        return m_configuration.m_exposure;
     }
 
 

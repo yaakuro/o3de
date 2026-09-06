@@ -236,6 +236,11 @@ namespace SkyAtmosphere
                             QT_TRANSLATE_NOOP("SkyAtmosphere", "Depth step in kilometers between the slices of the sky volume look up table, controls the range of the aerial perspective."))
                             ->Attribute(AZ::Edit::Attributes::Min, 0.1f)
                             ->Attribute(AZ::Edit::Attributes::Max, 100.0f)
+                        ->DataElement(AZ::Edit::UIHandlers::Slider, &SkyAtmosphereComponentConfig::m_exposure,
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Exposure"),
+                            QT_TRANSLATE_NOOP("SkyAtmosphere", "Luminance scale applied to the final sky output"))
+                            ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
+                            ->Attribute(AZ::Edit::Attributes::Max, 100.0f)
                         ->EndGroup()
                     ;
             }

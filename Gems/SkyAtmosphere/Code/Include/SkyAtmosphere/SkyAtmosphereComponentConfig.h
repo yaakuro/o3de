@@ -85,5 +85,7 @@ namespace SkyAtmosphere
         uint16_t m_volumeLutDim = 32;
         //! depth step in kilometers between sky volume LUT slices, controls the range of the aerial perspective
         float m_volumeKmPerSlice = 4.0f;
+        //! luminance scale applied to the final sky output
+        float m_exposure = 20.0f;
     };
 } // namespace AZ::Render

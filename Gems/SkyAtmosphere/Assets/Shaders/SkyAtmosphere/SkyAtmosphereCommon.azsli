@@ -124,7 +124,7 @@ ShaderResourceGroup PassSrg : SRG_PerPass_WithFallback
 
         float2 m_skyViewLutSize;    // resolution of the sky view LUT in texels
         float  m_volumeKmPerSlice;  // depth step in km between sky volume LUT slices
-        float  m_pad2;              // unused, 16 byte alignment
+        float  m_exposure;          // luminance scale applied to the final sky output
     };
 
     Constants m_constants;
