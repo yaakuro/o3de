@@ -18,7 +18,8 @@
                 "$type": "FullscreenTrianglePassData",
                 "ShaderAsset": {
                     "FilePath": "Shaders/SkyAtmosphere/SkyTransmittanceLUT.shader"
-                }
+                },
+                "BindViewSrg": true
             }
         }
     }
