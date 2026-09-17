@@ -16,6 +16,7 @@
 #endif
 
 #include "../BasePBR/BasePBR_SurfaceEval.azsli"
+#include "../MaterialFunctions/StochasticTiling.azsli"
 #include "../MaterialFunctions/StandardGetAlphaAndClip.azsli"
 #include <Atom/Features/PBR/LightingOptions.azsli>
 
@@ -35,6 +36,12 @@ Surface EvaluateSurface_StandardPBR(
     )
 {
     Surface surface = EvaluateSurface_BasePBR(params, positionWS, vertexNormal, tangents, bitangents, uvs, isFrontFace, uvDxDy, customDerivatives, vertexColor, lightingChannels);
+
+    // ------- Stochastic Tiling Macro Variation -------
+    // Modulate the base color with a large-scale world-space brightness variation that is independent
+    // of the texture tiling, to further break up visible repetition.
+
+    ApplyStochasticMacroVariation(surface.albedo, positionWS, real(params.m_stochasticTilingVariationStrength), real(params.m_stochasticTilingVariationScale));
 
     // ------- Parallax Clipping -------
 

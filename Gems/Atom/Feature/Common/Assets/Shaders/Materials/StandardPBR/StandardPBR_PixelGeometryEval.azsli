@@ -16,6 +16,7 @@
 #endif
 
 #include "../BasePBR/BasePBR_PixelGeometryEval.azsli"
+#include "../MaterialFunctions/StochasticTiling.azsli"
 #if ENABLE_PARALLAX
 #include "../MaterialFunctions/ParallaxDepth.azsli"
 #endif
@@ -35,6 +36,16 @@ PixelGeometryData EvaluatePixelGeometry_StandardPBR(
     real4x4 objectToWorld)
 {
     PixelGeometryData geoData = EvaluatePixelGeometry_BasePBR(SV, params, positionWS, normalWS, tangentWS, bitangentWS, uvs, isFrontFace);
+
+    // ------- Stochastic Tiling -------
+    // Seamlessly warp UV0 with a random vector field to break up texture repetition. This runs before
+    // parallax and surface evaluation so all UV0 texture samples (base color, normal, metallic,
+    // roughness, emissive, occlusion, clearcoat) and the detail maps derived from UV0 stay consistent.
+
+    if (o_stochasticTiling_enabled)
+    {
+        ApplyStochasticTiling(geoData.uvs[0], params.m_stochasticTilingStrength, params.m_stochasticTilingScale);
+    }
 
     // ------- Parallax -------
 
