@@ -54,6 +54,9 @@
             { 
                 "$import": "MaterialInputs/UvPropertyGroup.json"
             },
+            {
+                "$import": "MaterialInputs/StochasticTilingPropertyGroup.json"
+            },
             { 
                 "$import": "MaterialInputs/IrradiancePropertyGroup.json"
             },

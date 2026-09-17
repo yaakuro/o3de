@@ -34,6 +34,15 @@ PixelGeometryData EvaluatePixelGeometry_EnhancedPBR(
 {
     PixelGeometryData geoData = EvaluatePixelGeometry_BasePBR(SV, params, positionWS, normalWS, tangentWS, bitangentWS, uvs, isFrontFace);
 
+    // ------- Stochastic Tiling -------
+    // Seamlessly warp UV0 with a random vector field to break up texture repetition. This runs before
+    // parallax and surface evaluation so all UV0 texture samples stay consistent.
+
+    if (o_stochasticTiling_enabled)
+    {
+        ApplyStochasticTiling(geoData.uvs[0], params.m_stochasticTilingStrength, params.m_stochasticTilingScale);
+    }
+
     // ------- Detail UVs -------
 
     geoData.detailUvs = detailUvs;

@@ -1,0 +1,114 @@
+/*
+ * Copyright (c) Contributors to the Open 3D Engine Project.
+ * For complete copyright and license terms please see the LICENSE at the root of this distribution.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ */
+
+#pragma once
+
+// Stochastic tiling breaks up the visible repetition of tiled textures with two mechanisms:
+//
+// 1. UV warping: the tiled UV0 coordinates are smoothly warped with a seamless, randomized vector
+//    field (domain warping). Sample positions wander continuously across tile borders, so no cell
+//    boundaries or grid patterns are visible. Because the warp field is C2-continuous, screen-space
+//    derivatives stay continuous and mipmapping remains artifact-free everywhere.
+//
+// 2. Macro variation: a large-scale, world-space brightness modulation that is independent of the
+//    texture tiling. This breaks up the repetition perceptually at distances where UV warping alone
+//    is no longer visible.
+//
+// Only UV0 ("Tiled") is affected. UV1 ("Unwrapped") is left untouched because it typically holds
+// non-tiling unwrapped coordinates (e.g. lightmaps, atlas UVs).
+//
+// Note: like any UV distortion, strong warp values locally stretch texture features; reduce Strength
+// if this becomes noticeable.
+
+option bool o_stochasticTiling_enabled;
+
+// 2D hash by Dave Hoskins (https://www.shadertoy.com/view/XlXcW4), returns values in [0, 1).
+float2 StochasticHash22(float2 p)
+{
+    float3 p3 = frac(p.xyx * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.xx + p3.yz) * p3.zy);
+}
+
+// 3D hash by Dave Hoskins (https://www.shadertoy.com/view/XsXfzN), returns a value in [0, 1).
+float StochasticHash13(float3 p3)
+{
+    p3 = frac(p3 * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    return frac((p3.x + p3.y) * p3.z);
+}
+
+// C2-continuous random 2D vector field: random per-lattice-cell directions, smoothly interpolated
+// between lattice corners with a quintic curve. Returns components in [-1, 1).
+float2 StochasticWarpField(float2 p)
+{
+    const float2 cell = floor(p);
+    const float2 f = frac(p);
+    const float2 blend = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+
+    const float2 n00 = StochasticHash22(cell) * 2.0 - 1.0;
+    const float2 n10 = StochasticHash22(cell + float2(1.0, 0.0)) * 2.0 - 1.0;
+    const float2 n01 = StochasticHash22(cell + float2(0.0, 1.0)) * 2.0 - 1.0;
+    const float2 n11 = StochasticHash22(cell + float2(1.0, 1.0)) * 2.0 - 1.0;
+
+    return lerp(lerp(n00, n10, blend.x), lerp(n01, n11, blend.x), blend.y);
+}
+
+// Smoothly warps uv with a seamless random vector field to break up texture repetition. strength is
+// expected in [0, 1] and maps to a maximum shift of about half a tile. scale controls the frequency
+// of the warp field (higher = more chaotic, lower = smoother over more tiles).
+void ApplyStochasticTiling(inout float2 uv, real strength, real scale)
+{
+    if (!o_stochasticTiling_enabled || strength <= 0.0)
+    {
+        return;
+    }
+
+    // Three octaves at non-integer periods so the field never aligns with the texture tiling: a
+    // coarse field that wanders over multiple tiles and finer fields that decorrelate neighbors.
+    float2 warp = StochasticWarpField(uv * scale / 4.13);
+    warp += 0.4 * StochasticWarpField(uv * scale / 1.71 + 37.19);
+    warp += 0.15 * StochasticWarpField(uv * scale / 0.71 + 91.13);
+
+    uv += (strength * 0.5) * warp;
+}
+
+// C2-continuous scalar value noise in [0, 1) on a world-space 3D lattice.
+float StochasticVariationNoise(float3 p)
+{
+    const float3 cell = floor(p);
+    const float3 f = frac(p);
+    const float3 blend = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+
+    const float n = lerp(
+        lerp(
+            lerp(StochasticHash13(cell + float3(0.0, 0.0, 0.0)), StochasticHash13(cell + float3(1.0, 0.0, 0.0)), blend.x),
+            lerp(StochasticHash13(cell + float3(0.0, 1.0, 0.0)), StochasticHash13(cell + float3(1.0, 1.0, 0.0)), blend.x),
+            blend.y),
+        lerp(
+            lerp(StochasticHash13(cell + float3(0.0, 0.0, 1.0)), StochasticHash13(cell + float3(1.0, 0.0, 1.0)), blend.x),
+            lerp(StochasticHash13(cell + float3(0.0, 1.0, 1.0)), StochasticHash13(cell + float3(1.0, 1.0, 1.0)), blend.x),
+            blend.y),
+        blend.z);
+
+    return n;
+}
+
+// Multiplies baseColor with a large-scale, world-space brightness modulation. strength is expected in
+// [0, 1] (0 disables the effect) and scale is the world-space size of a variation patch.
+void ApplyStochasticMacroVariation(inout real3 baseColor, float3 positionWS, real strength, real scale)
+{
+    if (!o_stochasticTiling_enabled || strength <= 0.0)
+    {
+        return;
+    }
+
+    const float variation = StochasticVariationNoise(positionWS / max(scale, 0.001));
+    const real brightness = real(lerp(1.0, 0.7 + 0.6 * variation, saturate(strength)));
+    baseColor *= brightness;
+}

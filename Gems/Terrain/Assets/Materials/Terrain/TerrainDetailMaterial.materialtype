@@ -83,8 +83,11 @@
                     }
                 ]
             },
-            { 
+            {
                 "$import": "../../../../Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/UvPropertyGroup.json"
+            },
+            {
+                "$import": "../../../../Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/StochasticTilingPropertyGroup.json"
             },
             { 
                 "$import": "../../../../Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/IrradiancePropertyGroup.json"
