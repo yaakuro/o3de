@@ -77,6 +77,17 @@ Surface EvaluateSurface_EnhancedPBR(
     real3 baseColor = GetDetailedBaseColorInput(
         GetMaterialTexture(params.m_baseColorMap),             GetMaterialTextureSampler(), baseColorUv, o_baseColor_useTexture,        real3(params.m_baseColor.rgb),  real(params.m_baseColorFactor), o_baseColorTextureBlendMode,
         GetMaterialTexture(params.m_detail_baseColor_texture), GetMaterialTextureSampler(), detailUv,    o_detail_baseColor_useTexture, detailLayerBaseColorFactor, uvDxDy, customDerivatives);
+
+    // ------- Stochastic Tiling + Blending -------
+    // Replaces the base color with a stochastic tiling and blending sample (Deliot/Heitz) when enabled.
+    // Note: the base color detail map is bypassed in this mode.
+
+    if (o_stochasticTiling_tilingBlendingEnabled)
+    {
+        baseColor = SampleStochasticTilingBlending(params,
+            GetMaterialTexture(params.m_stochasticGaussianMap), GetMaterialTexture(params.m_stochasticInverseLut),
+            GetMaterialTextureSampler(), baseColorUv, uvDxDy, customDerivatives);
+    }
     baseColor = BlendVertexColor(baseColor, real3(vertexColor.rgb), real(params.m_vertexColorFactor));
 
     // ------- Stochastic Tiling Macro Variation -------

@@ -127,6 +127,8 @@ namespace AzToolsFramework
             AZStd::atomic_bool m_disposed;
             AZStd::atomic_bool m_isResetting;
             AZStd::atomic_bool m_changesApplied;
+            //! a reset was requested from a non-UI thread; BeginReset must be deferred to the next system tick
+            AZStd::atomic_bool m_beginResetPending = false;
 
             AZStd::unique_ptr<AssetBrowserModel> m_assetBrowserModel;
             AZStd::shared_ptr<AssetEntryChangeset> m_changeset;

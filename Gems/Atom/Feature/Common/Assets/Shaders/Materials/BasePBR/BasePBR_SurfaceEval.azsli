@@ -20,6 +20,7 @@
 #endif
 
 #include <Atom/Features/MatrixUtility.azsli>
+#include <Atom/Feature/Common/Assets/Shaders/Materials/MaterialFunctions/StochasticTilingBlending.azsli>
 
 real3 BlendVertexColor(real3 baseColor, real3 vertexColor, real factor)
 {
@@ -71,6 +72,18 @@ Surface EvaluateSurface_BasePBR(
 
     float2 baseColorUv = uvs[params.m_baseColorMapUvIndex];
     real3 sampledColor = GetBaseColorInput(GetMaterialTexture(params.m_baseColorMap), GetMaterialTextureSampler(), baseColorUv, real3(params.m_baseColor.rgb), o_baseColor_useTexture, uvDxDy, customDerivatives);
+
+    // ------- Stochastic Tiling + Blending -------
+    // Replaces the base color sample with a stochastic tiling and blending sample (Deliot/Heitz) when
+    // the mode is enabled and the required Gaussian map / inverse LUT are provided.
+
+    if (o_stochasticTiling_tilingBlendingEnabled)
+    {
+        sampledColor = SampleStochasticTilingBlending(params,
+            GetMaterialTexture(params.m_stochasticGaussianMap), GetMaterialTexture(params.m_stochasticInverseLut),
+            GetMaterialTextureSampler(), baseColorUv, uvDxDy, customDerivatives);
+    }
+
     real3 baseColor = BlendBaseColor(sampledColor, real3(params.m_baseColor.rgb), real(params.m_baseColorFactor), o_baseColorTextureBlendMode, o_baseColor_useTexture);
     baseColor = BlendVertexColor(baseColor, real3(vertexColor.rgb), real(params.m_vertexColorFactor));
     

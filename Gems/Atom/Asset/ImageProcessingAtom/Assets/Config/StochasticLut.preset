@@ -1,0 +1,49 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "MultiplatformPresetSettings",
+    "ClassData": {
+        "DefaultPreset": {
+            "UUID": "{e88a22fe-8d6f-40be-ab1f-063cf7151072}",
+            "Name": "StochasticLut",
+            "SourceColor": "Linear",
+            "DestColor": "Linear",
+            "PixelFormat": "R8G8B8A8",
+            "FileMasks": ["_lut"]
+        },
+        "PlatformsPresets": {
+            "android": {
+                "UUID": "{e88a22fe-8d6f-40be-ab1f-063cf7151072}",
+                "Name": "StochasticLut",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_lut"]
+            },
+            "ios": {
+                "UUID": "{e88a22fe-8d6f-40be-ab1f-063cf7151072}",
+                "Name": "StochasticLut",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_lut"]
+            },
+            "mac": {
+                "UUID": "{e88a22fe-8d6f-40be-ab1f-063cf7151072}",
+                "Name": "StochasticLut",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_lut"]
+            },
+            "provo": {
+                "UUID": "{e88a22fe-8d6f-40be-ab1f-063cf7151072}",
+                "Name": "StochasticLut",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_lut"]
+            }
+        }
+    }
+}

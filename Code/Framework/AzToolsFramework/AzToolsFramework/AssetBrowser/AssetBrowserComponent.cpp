@@ -179,6 +179,19 @@ namespace AzToolsFramework
                 AssetBrowserComponentNotificationBus::Broadcast(&AssetBrowserComponentNotifications::OnAssetBrowserComponentReady);
             }
 
+            // BeginReset and the tree reset must happen on the UI thread: they can be requested
+            // from the asset system notification thread (PopulateAssets), and emitting model
+            // resets / mutating entries from two threads corrupts the view state and crashes the
+            // asset browser while it is in use.
+            if (m_beginResetPending)
+            {
+                m_beginResetPending = false;
+                m_assetBrowserModel->BeginReset();
+                m_rootEntry->PrepareForReset();
+                m_changeset->PopulateEntries();
+                NotifyUpdateThread();
+            }
+
             if (m_isResetting && m_changesApplied)
             {
                 m_isResetting = false;
@@ -402,12 +415,12 @@ namespace AzToolsFramework
         void AssetBrowserComponent::PopulateAssets()
         {
             // populating the assets is a complete reset of the model.
+            // NOTE: this runs on the asset system notification thread. Qt model notifications
+            // (BeginReset) and tree mutation must happen on the UI thread, so defer the entire
+            // reset to the next system tick (OnSystemTick).
             m_isResetting = true;
             m_changesApplied = false;
-            m_assetBrowserModel->BeginReset();
-            m_rootEntry->PrepareForReset();
-            m_changeset->PopulateEntries();
-            NotifyUpdateThread();
+            m_beginResetPending = true;
         }
 
         void AssetBrowserComponent::UpdateAssets()

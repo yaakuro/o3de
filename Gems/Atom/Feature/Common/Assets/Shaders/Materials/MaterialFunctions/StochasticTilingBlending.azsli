@@ -1,0 +1,121 @@
+/*
+ * Copyright (c) Contributors to the Open 3D Engine Project.
+ * For complete copyright and license terms please see the LICENSE at the root of this distribution.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ */
+
+#pragma once
+
+// Implements "Procedural Stochastic Textures by Tiling and Blending" (Deliot & Heitz 2019) as an
+// opt-in high quality stochastic sampling mode.
+//
+// The uv space is partitioned on an equilateral-triangle grid. Every pixel fetches the Gaussianized
+// version of the texture three times, each fetch offset by a per-vertex random hash, and the results
+// are blended with variance-preserving weights. A precomputed inverse histogram LUT (prefiltered per
+// mip level) maps the blended Gaussian values back to texture space, and a PCA-decorrelated color
+// space transform (passed as material constants) preserves the color correlations of the input.
+//
+// The required textures and color space constants are produced offline by the
+// stochastic_preprocess.py tool. Note that both textures must be imported as linear (non-sRGB) data.
+
+#include <Atom/Feature/Common/Assets/Shaders/Materials/MaterialFunctions/StochasticTiling.azsli>
+
+option bool o_stochasticTiling_tilingBlendingEnabled;
+
+// Compute the local triangle of the simplex grid and the barycentric coordinates (Listing 1.2).
+void StochasticTriangleGrid(float2 uv, out real3 weights, out int2 vertex0, out int2 vertex1, out int2 vertex2)
+{
+    uv *= 3.464;
+    const real2 skewed = real2(uv.x - 0.57735027 * uv.y, 1.15470054 * uv.y);
+    const int2 baseId = int2(floor(skewed));
+    const real2 f = frac(skewed);
+    const real z = 1.0 - f.x - f.y;
+
+    if (z > 0.0)
+    {
+        weights = real3(z, f.y, f.x);
+        vertex0 = baseId;
+        vertex1 = baseId + int2(0, 1);
+        vertex2 = baseId + int2(1, 0);
+    }
+    else
+    {
+        weights = real3(-z, 1.0 - f.y, 1.0 - f.x);
+        vertex0 = baseId + int2(1, 1);
+        vertex1 = baseId + int2(1, 0);
+        vertex2 = baseId + int2(0, 1);
+    }
+}
+
+// Per-vertex random offset (Listing 1.3).
+real2 StochasticHashOffset(int2 p)
+{
+    return real2(frac(sin(dot(p, real2(127.1, 269.5))) * 43758.5453),
+                 frac(sin(dot(p, real2(311.7, 183.3))) * 43758.5453));
+}
+
+// Samples the base color with stochastic tiling and blending. The Gaussian map must contain the
+// histogram-transformed texture (T), the inverse LUT the prefiltered histogram transformation (T^-1).
+real3 SampleStochasticTilingBlending(
+    const MaterialParameters params,
+    Texture2D gaussianMap,
+    Texture2D inverseLut,
+    sampler texSampler,
+    float2 uv,
+    float4 uvDxDy,
+    bool customDerivatives)
+{
+    // Screen-space derivatives of the un-offset uv keep mip selection correct across triangle
+    // borders (paper 1.2.1).
+    const float2 duvdx = customDerivatives ? uvDxDy.xy : ddx(uv);
+    const float2 duvdy = customDerivatives ? uvDxDy.zw : ddy(uv);
+
+    real3 w;
+    int2 vertex0;
+    int2 vertex1;
+    int2 vertex2;
+    StochasticTriangleGrid(uv, w, vertex0, vertex1, vertex2);
+
+    const float2 uv0 = uv + StochasticHashOffset(vertex0);
+    const float2 uv1 = uv + StochasticHashOffset(vertex1);
+    const float2 uv2 = uv + StochasticHashOffset(vertex2);
+
+    const real3 g0 = gaussianMap.SampleGrad(texSampler, uv0, duvdx, duvdy).rgb;
+    const real3 g1 = gaussianMap.SampleGrad(texSampler, uv1, duvdx, duvdy).rgb;
+    const real3 g2 = gaussianMap.SampleGrad(texSampler, uv2, duvdx, duvdy).rgb;
+
+    // Variance-preserving blending (Listing 1.5, equation 1.2).
+    real3 g = w.x * g0 + w.y * g1 + w.z * g2;
+    g = (g - 0.5) * rsqrt(max(w.x * w.x + w.y * w.y + w.z * w.z, 1e-6)) + 0.5;
+
+    // Fetch the prefiltered inverse LUT (Listing 1.11). The x coordinate addresses the Gaussian
+    // value of each channel, the y coordinate the mip level of the gaussian map. The uv is built
+    // from texel centers so the wrap sampler never bleeds across the LUT edges.
+    uint gaussianWidth;
+    uint gaussianHeight;
+    gaussianMap.GetDimensions(gaussianWidth, gaussianHeight);
+    const float footprint = max(length(duvdx), length(duvdy));
+    const float lod = clamp(log2(max(footprint, 1e-6) * real(gaussianWidth)), 0.0, 10.0);
+
+    uint lutWidth;
+    uint lutHeight;
+    inverseLut.GetDimensions(lutWidth, lutHeight);
+    float2 lutUv;
+    lutUv.y = ((saturate(lod / max(real(lutHeight) - 1.0, 1.0)) * (real(lutHeight) - 1.0)) + 0.5) / real(lutHeight);
+
+    real3 result;
+    lutUv.x = (saturate(g.x) * (real(lutWidth) - 1.0) + 0.5) / real(lutWidth);
+    result.x = inverseLut.SampleLevel(texSampler, lutUv, 0).r;
+    lutUv.x = (saturate(g.y) * (real(lutWidth) - 1.0) + 0.5) / real(lutWidth);
+    result.y = inverseLut.SampleLevel(texSampler, lutUv, 0).g;
+    lutUv.x = (saturate(g.z) * (real(lutWidth) - 1.0) + 0.5) / real(lutWidth);
+    result.z = inverseLut.SampleLevel(texSampler, lutUv, 0).b;
+
+    // Back-transform from the decorrelated color space (Listing 1.10).
+    return real3(params.m_stochasticColorOrigin) +
+        real3(params.m_stochasticColorAxis1) * result.x +
+        real3(params.m_stochasticColorAxis2) * result.y +
+        real3(params.m_stochasticColorAxis3) * result.z;
+}

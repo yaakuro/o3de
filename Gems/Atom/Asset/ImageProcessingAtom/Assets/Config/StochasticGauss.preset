@@ -1,0 +1,64 @@
+{
+    "Type": "JsonSerialization",
+    "Version": 1,
+    "ClassName": "MultiplatformPresetSettings",
+    "ClassData": {
+        "DefaultPreset": {
+            "UUID": "{7b5051a3-3d43-4349-b3fa-be1e6ed3eefb}",
+            "Name": "StochasticGauss",
+            "SourceColor": "Linear",
+            "DestColor": "Linear",
+            "PixelFormat": "R8G8B8A8",
+            "FileMasks": ["_gauss"],
+            "MipMapSetting": {
+                "MipGenType": "Box"
+            }
+        },
+        "PlatformsPresets": {
+            "android": {
+                "UUID": "{7b5051a3-3d43-4349-b3fa-be1e6ed3eefb}",
+                "Name": "StochasticGauss",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_gauss"],
+                "MipMapSetting": {
+                    "MipGenType": "Box"
+                }
+            },
+            "ios": {
+                "UUID": "{7b5051a3-3d43-4349-b3fa-be1e6ed3eefb}",
+                "Name": "StochasticGauss",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_gauss"],
+                "MipMapSetting": {
+                    "MipGenType": "Box"
+                }
+            },
+            "mac": {
+                "UUID": "{7b5051a3-3d43-4349-b3fa-be1e6ed3eefb}",
+                "Name": "StochasticGauss",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_gauss"],
+                "MipMapSetting": {
+                    "MipGenType": "Box"
+                }
+            },
+            "provo": {
+                "UUID": "{7b5051a3-3d43-4349-b3fa-be1e6ed3eefb}",
+                "Name": "StochasticGauss",
+                "SourceColor": "Linear",
+                "DestColor": "Linear",
+                "PixelFormat": "R8G8B8A8",
+                "FileMasks": ["_gauss"],
+                "MipMapSetting": {
+                    "MipGenType": "Box"
+                }
+            }
+        }
+    }
+}
