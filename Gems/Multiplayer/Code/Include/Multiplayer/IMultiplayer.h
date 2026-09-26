@@ -211,6 +211,28 @@ namespace Multiplayer
         //! @return pointer to the network entity manager instance bound to this multiplayer instance
         virtual INetworkEntityManager* GetNetworkEntityManager() = 0;
 
+        //! Reassigns which network entity a connection controls (its autonomous entity).
+        //! This enables gameplay possession (entering/exiting vehicles) at runtime. The new
+        //! entity should already be replicated to the client (e.g. spawned by the player
+        //! spawner). The client transitions roles automatically as the replication window
+        //! changes, constructing or destroying controllers as needed.
+        //! This is a server/host only operation; on a client it is a no-op.
+        //! @param connection       the connection whose controlled entity should change
+        //! @param controlledEntity the entity the connection will control from now on
+        //! @return true if the controlled entity was changed
+        virtual bool SetControlledEntity(AzNetworking::IConnection* /*connection*/, NetworkEntityHandle /*controlledEntity*/)
+        {
+            return false;
+        }
+
+        //! Returns the network entity currently controlled (autonomous) by a connection.
+        //! @param connection the connection to query
+        //! @return the owned entity, or an invalid handle on clients / unknown connections
+        virtual NetworkEntityHandle GetControlledEntity(AzNetworking::IConnection* /*connection*/)
+        {
+            return NetworkEntityHandle();
+        }
+
         //! Registers a temp userId to allow a host to look up a players controlled entity in the event of a rejoin or migration event.
         //! @param temporaryUserIdentifier the temporary user identifier used to identify a player across hosts
         //! @param controlledEntityId      the controlled entityId of the players autonomous entity

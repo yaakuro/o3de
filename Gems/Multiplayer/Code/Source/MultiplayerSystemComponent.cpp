@@ -1407,6 +1407,7 @@ namespace Multiplayer
             if (controlledEntity.Exists())
             {
                 EnableAutonomousControl(controlledEntity, InvalidConnectionId);
+                m_hostControlledEntity = controlledEntity;
             }
             else
             {
@@ -1526,6 +1527,70 @@ namespace Multiplayer
     INetworkEntityManager* MultiplayerSystemComponent::GetNetworkEntityManager()
     {
         return &m_networkEntityManager;
+    }
+
+    bool MultiplayerSystemComponent::SetControlledEntity(AzNetworking::IConnection* connection, NetworkEntityHandle controlledEntity)
+    {
+        if (GetAgentType() != MultiplayerAgentType::ClientServer && GetAgentType() != MultiplayerAgentType::DedicatedServer)
+        {
+            return false;
+        }
+        if (!controlledEntity.Exists())
+        {
+            return false;
+        }
+
+        // A null connection means the client-server host is changing its own controlled
+        // entity (local autonomy). A non-null connection is a remote client's request.
+        if (connection == nullptr)
+        {
+            if (m_hostControlledEntity.Exists() && m_hostControlledEntity.GetNetEntityId() != controlledEntity.GetNetEntityId())
+            {
+                if (NetBindComponent* previousNetBind = m_hostControlledEntity.GetNetBindComponent())
+                {
+                    previousNetBind->SetOwningConnectionId(AzNetworking::InvalidConnectionId);
+                    previousNetBind->EnablePlayerHostAutonomy(false);
+                }
+            }
+
+            EnableAutonomousControl(controlledEntity, AzNetworking::InvalidConnectionId);
+            m_hostControlledEntity = controlledEntity;
+            return true;
+        }
+
+        auto* connectionData = reinterpret_cast<ServerToClientConnectionData*>(connection->GetUserData());
+        if (connectionData == nullptr)
+        {
+            return false;
+        }
+
+        // Release the previously owned entity so it stops being treated as client-controlled.
+        const NetworkEntityHandle previousEntity = connectionData->GetPrimaryPlayerEntity();
+        if (previousEntity.Exists() && previousEntity.GetNetEntityId() != controlledEntity.GetNetEntityId())
+        {
+            if (NetBindComponent* previousNetBind = previousEntity.GetNetBindComponent())
+            {
+                previousNetBind->SetOwningConnectionId(AzNetworking::InvalidConnectionId);
+                previousNetBind->EnablePlayerHostAutonomy(false);
+            }
+        }
+
+        EnableAutonomousControl(controlledEntity, connection->GetConnectionId());
+        StartServerToClientReplication(0, controlledEntity, connection);
+        return true;
+    }
+
+    NetworkEntityHandle MultiplayerSystemComponent::GetControlledEntity(AzNetworking::IConnection* connection)
+    {
+        if (connection == nullptr)
+        {
+            return m_hostControlledEntity;
+        }
+        if (auto* connectionData = reinterpret_cast<ServerToClientConnectionData*>(connection->GetUserData()))
+        {
+            return connectionData->GetPrimaryPlayerEntity();
+        }
+        return NetworkEntityHandle();
     }
 
     void MultiplayerSystemComponent::RegisterPlayerIdentifierForRejoin(uint64_t temporaryUserIdentifier, NetEntityId controlledEntityId)
@@ -1783,6 +1848,12 @@ namespace Multiplayer
             if (controlledEntity.Exists())
             {
                 EnableAutonomousControl(controlledEntity, playerWaitingToBeSpawned.agent.m_id);
+
+                // The host controls itself with no owning connection id.
+                if (playerWaitingToBeSpawned.agent.m_id == AzNetworking::InvalidConnectionId)
+                {
+                    m_hostControlledEntity = controlledEntity;
+                }
             }
             else
             {

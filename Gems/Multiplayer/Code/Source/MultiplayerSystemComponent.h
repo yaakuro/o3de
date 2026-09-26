@@ -152,6 +152,8 @@ namespace Multiplayer
         float GetCurrentBlendFactor() const override;
         INetworkTime* GetNetworkTime() override;
         INetworkEntityManager* GetNetworkEntityManager() override;
+        bool SetControlledEntity(AzNetworking::IConnection* connection, NetworkEntityHandle controlledEntity) override;
+        NetworkEntityHandle GetControlledEntity(AzNetworking::IConnection* connection) override;
         void RegisterPlayerIdentifierForRejoin(uint64_t temporaryUserIdentifier, NetEntityId controlledEntityId) override;
         void CompleteClientMigration(uint64_t temporaryUserIdentifier, AzNetworking::ConnectionId connectionId, const HostId& publicHostId, ClientInputId migratedClientInputId) override;
         void SetShouldSpawnNetworkEntities(bool value) override;
@@ -201,6 +203,10 @@ namespace Multiplayer
         NetworkEntityManager m_networkEntityManager;
         NetworkTime m_networkTime;
         MultiplayerAgentType m_agentType = MultiplayerAgentType::Uninitialized;
+
+        // The entity the client-server host itself controls (local autonomy). Tracked so
+        // runtime possession can hand autonomy between the host's pawn and a vehicle.
+        NetworkEntityHandle m_hostControlledEntity;
         
         IFilterEntityManager* m_filterEntityManager = nullptr; // non-owning pointer
 
