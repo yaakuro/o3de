@@ -71,6 +71,30 @@ namespace SkyAtmosphere
         return nullptr;
     }
 
+    AZ::Data::Instance<AZ::RPI::Image> SkyAtmosphereParentPass::GetLUTImage(
+        SkyAtmosphereFeatureProcessorInterface::AtmosphereId id, AtmosphereLUTType type) const
+    {
+        SkyAtmospherePass* target = nullptr;
+        if (id.IsValid())
+        {
+            target = GetPass(id).get();
+        }
+        else
+        {
+            // No specific atmosphere requested: use the first one this pass owns.
+            for (const AZ::RPI::Ptr<Pass>& child : m_children)
+            {
+                if (auto* pass = azrtti_cast<SkyAtmospherePass*>(child.get()))
+                {
+                    target = pass;
+                    break;
+                }
+            }
+        }
+
+        return target ? target->GetLUTImage(type) : nullptr;
+    }
+
 
     void SkyAtmosphereParentPass::CreateChildPassesInternal()
     {

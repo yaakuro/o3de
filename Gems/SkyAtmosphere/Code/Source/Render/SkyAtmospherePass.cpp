@@ -454,4 +454,26 @@ namespace SkyAtmosphere
     {
         return m_atmosphereId;
     }
+
+    AZ::Data::Instance<AZ::RPI::Image> SkyAtmospherePass::GetLUTImage(AtmosphereLUTType type) const
+    {
+        const ImageInstance* image = nullptr;
+        switch (type)
+        {
+        case AtmosphereLUTType::Transmittance:
+            image = &m_transmittanceLUTImage;
+            break;
+        case AtmosphereLUTType::SkyView:
+            image = &m_skyViewLUTImage;
+            break;
+        case AtmosphereLUTType::SkyVolume:
+            image = &m_skyVolumeLUTImage;
+            break;
+        case AtmosphereLUTType::MultiScattering:
+            image = &m_multiScatteringLUTImage;
+            break;
+        }
+
+        return image ? AZ::Data::Instance<AZ::RPI::Image>(*image) : nullptr;
+    }
 } // AZ::Namespace AZ::Render

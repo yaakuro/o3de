@@ -42,6 +42,10 @@ namespace SkyAtmosphere
         void SetAtmosphereParams(AtmosphereId id, const SkyAtmosphereParams& params) override;
         void SetAtmosphereEnabled(AtmosphereId id, bool enabled) override;
         bool GetAtmosphereEnabled(AtmosphereId id) override;
+        AZ::Data::Instance<AZ::RPI::Image> GetLUTImage(
+            AZ::RPI::RenderPipeline* pipeline, AtmosphereLUTType type,
+            AtmosphereId id = AtmosphereId::Null) const override;
+        bool GetAtmosphereParams(AtmosphereId id, SkyAtmosphereParams& outParams) override;
 
     private:
 
@@ -61,6 +65,8 @@ namespace SkyAtmosphere
         };
 
         AZ::Render::SparseVector<SkyAtmosphere> m_atmospheres;
+        //! First atmosphere ever created, used when a caller does not care about a specific id.
+        AtmosphereId m_primaryAtmosphereId = AtmosphereId::Null;
         AZStd::map<AZ::RPI::RenderPipeline*, SkyAtmosphereParentPass*> m_renderPipelineToSkyAtmosphereParentPass;
     };
 }

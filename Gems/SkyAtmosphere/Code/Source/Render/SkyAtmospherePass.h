@@ -39,6 +39,10 @@ namespace SkyAtmosphere
 
         SkyAtmosphereFeatureProcessorInterface::AtmosphereId GetAtmosphereId() const;
 
+        //! Returns the LUT image of the requested kind, or nullptr when it has not been created yet
+        //! (images are allocated in BuildInternal on the first frame the pass runs).
+        AZ::Data::Instance<AZ::RPI::Image> GetLUTImage(AtmosphereLUTType type) const;
+
         void UpdateRenderPassSRG(const SkyAtmosphereParams& params);
 
     protected:

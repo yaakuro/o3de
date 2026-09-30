@@ -39,6 +39,7 @@ namespace SkyAtmosphere
         DisableSceneNotification();
 
         m_atmospheres.Clear();
+        m_primaryAtmosphereId = AtmosphereId::Null;
         m_renderPipelineToSkyAtmosphereParentPass.clear();
     }
 
@@ -52,6 +53,10 @@ namespace SkyAtmosphere
         }
 
         AtmosphereId id = AtmosphereId(aznumeric_cast<AtmosphereId::IndexType>(index));
+        if (!m_primaryAtmosphereId.IsValid())
+        {
+            m_primaryAtmosphereId = id;
+        }
         InitializeAtmosphere(id);
 
         return id;
@@ -62,6 +67,10 @@ namespace SkyAtmosphere
         if (id.IsValid())
         {
             m_atmospheres.Release(id.GetIndex());
+            if (m_primaryAtmosphereId.GetIndex() == id.GetIndex())
+            {
+                m_primaryAtmosphereId = AtmosphereId::Null;
+            }
         }
 
         for (auto& [_, pass] : m_renderPipelineToSkyAtmosphereParentPass)
@@ -96,6 +105,36 @@ namespace SkyAtmosphere
         }
 
         return false;
+    }
+
+    AZ::Data::Instance<AZ::RPI::Image> SkyAtmosphereFeatureProcessor::GetLUTImage(
+        AZ::RPI::RenderPipeline* pipeline, AtmosphereLUTType type, AtmosphereId id) const
+    {
+        if (!pipeline)
+        {
+            return nullptr;
+        }
+
+        auto it = m_renderPipelineToSkyAtmosphereParentPass.find(pipeline);
+        if (it == m_renderPipelineToSkyAtmosphereParentPass.end() || it->second == nullptr)
+        {
+            return nullptr;
+        }
+
+        const AtmosphereId targetId = id.IsValid() ? id : m_primaryAtmosphereId;
+        return it->second->GetLUTImage(targetId, type);
+    }
+
+    bool SkyAtmosphereFeatureProcessor::GetAtmosphereParams(AtmosphereId id, SkyAtmosphereParams& outParams)
+    {
+        const AtmosphereId targetId = id.IsValid() ? id : m_primaryAtmosphereId;
+        if (!targetId.IsValid() || targetId.GetIndex() >= m_atmospheres.GetSize())
+        {
+            return false;
+        }
+
+        outParams = m_atmospheres.GetElement(targetId.GetIndex()).m_params;
+        return true;
     }
 
 
