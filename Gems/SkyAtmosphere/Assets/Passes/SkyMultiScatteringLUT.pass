@@ -1,6 +1,6 @@
 {
     "Type": "JsonSerialization",
-    "Description": "This is the pass template that renders the sky multiple scattering approximation LUT",
+    "Description": "This is the pass template that renders the sky multiple scattering approximation LUT. The dispatch is derived from the output image (SkyAtmospherePass::MultiScatteringLutResolution), one thread group per texel with 64 threads in Z for the spherical integration reduction.",
     "Version": 1,
     "ClassName": "PassAsset",
     "ClassData": {
@@ -23,9 +23,7 @@
             ],
             "PassData": {
                 "$type": "ComputePassData",
-                "ThreadCountX": "32",
-                "ThreadCountY": "32",
-                "ThreadCountZ": "64",
+                "FullscreenDispatch": true,
                 "ShaderAsset": {
                     "FilePath": "Shaders/SkyAtmosphere/SkyMultiScatteringLUT.shader"
                 },

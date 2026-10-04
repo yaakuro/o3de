@@ -35,6 +35,12 @@ namespace SkyAtmosphere
         AZ_CLASS_ALLOCATOR(SkyAtmospherePass, AZ::SystemAllocator);
         ~SkyAtmospherePass() = default;
 
+        //! Resolution of the multiple scattering approximation LUT. Must match MULTI_SCATTERING_LUT_RES
+        //! in SkyAtmosphereCommon.azsli. The SkyMultiScatteringLUT pass derives its dispatch from the
+        //! image created with this size (one thread group per texel, with 64 threads in Z for the
+        //! spherical integration reduction).
+        static constexpr AZ::u32 MultiScatteringLutResolution = 32;
+
         static AZ::RPI::Ptr<SkyAtmospherePass> CreateWithPassRequest(SkyAtmosphereFeatureProcessorInterface::AtmosphereId id);
 
         SkyAtmosphereFeatureProcessorInterface::AtmosphereId GetAtmosphereId() const;
@@ -142,6 +148,9 @@ namespace SkyAtmosphere
         bool m_updateConstants = false;
 
         bool m_enableSkyTransmittanceLUTPass = false;
+        //! Set when the multiple scattering LUT has to be regenerated (build or atmosphere LUT parameter
+        //! change). The pass is enabled for a single frame to regenerate it, then disabled again.
+        bool m_enableMultiScatteringLUTPass = false;
         bool m_enableFastSky = true;
         bool m_fastAerialPerspectiveEnabled = true;
         bool m_aerialPerspectiveEnabled = true;

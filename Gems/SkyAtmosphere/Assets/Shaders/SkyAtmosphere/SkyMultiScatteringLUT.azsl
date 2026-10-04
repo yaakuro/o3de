@@ -10,6 +10,9 @@
 
 #define ENABLE_ATMOSPHERE_SHADOWS 0
 #define ENABLE_ATMOSPHERE_MULTI_SCATTERING_SAMPLING 0
+// The LUT stores an illuminance independent transfer function (globalL == 1); the sun illuminance
+// is applied when the LUT is sampled by the sky passes.
+#define ILLUMINANCE_IS_ONE
 #include <viewsrg_all.srgi>
 #include <Atom/Features/SrgSemantics.azsli>
 #include <SkyAtmosphereCommon.azsli>
@@ -134,7 +137,9 @@ void SkyMultiScatteringLUTCS(uint3 dispatchId : SV_DispatchThreadID)
     float3 L = InScatteredLuminance * (1.0 + MultiScatAs1 + MultiScatAs1SQR + MultiScatAs1 * MultiScatAs1SQR + MultiScatAs1SQR * MultiScatAs1SQR);
 #else
     // For a serie, sum_{n=0}^{n=+inf} = 1 + r + r^2 + r^3 + ... + r^n = 1 / (1.0 - r), see https://en.wikipedia.org/wiki/Geometric_series 
-    const float3 r = MultiScatAs1;
+    // The serie only converges for r < 1. Clamp the ratio so that extreme coefficients can not
+    // produce an infinite or negative contribution; this is a no-op for r < 0.999.
+    const float3 r = min(MultiScatAs1, 0.999f);
     const float3 SumOfAllMultiScatteringEventsContribution = 1.0f / (1.0 - r);
     float3 L = InScatteredLuminance * SumOfAllMultiScatteringEventsContribution; // Equation 10 Psi_ms
 #endif

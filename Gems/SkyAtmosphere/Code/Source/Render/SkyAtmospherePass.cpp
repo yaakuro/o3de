@@ -147,8 +147,8 @@ namespace SkyAtmosphere
 
         {
             // create and bind multiple scattering approximation LUT
-            constexpr AZ::u32 width = 32;
-            constexpr AZ::u32 height = 32;
+            constexpr AZ::u32 width = MultiScatteringLutResolution;
+            constexpr AZ::u32 height = MultiScatteringLutResolution;
             AZ::RHI::ImageDescriptor imageDesc = AZ::RHI::ImageDescriptor::Create2D(
                 AZ::RHI::ImageBindFlags::Color | AZ::RHI::ImageBindFlags::ShaderReadWrite, width, height,
                 AZ::RHI::Format::R16G16B16A16_FLOAT);
@@ -221,6 +221,7 @@ namespace SkyAtmosphere
         BindLUTs();
 
         m_enableSkyTransmittanceLUTPass = true;
+        m_enableMultiScatteringLUTPass = true;
     }
 
     void SkyAtmospherePass::UpdatePassData()
@@ -304,6 +305,24 @@ namespace SkyAtmosphere
             }
         }
 
+        if (m_skyMultiScatteringLUTPass)
+        {
+            // The multiple scattering LUT is generated on demand instead of every frame. Its content
+            // does not depend on m_multipleScatteringEnabled (the factor is applied when the LUT is
+            // sampled), so it is regenerated on exactly the same events as the transmittance LUT:
+            // once on build and whenever the atmosphere LUT parameters change. Between those events
+            // the pass stays disabled and the previously generated image is sampled.
+            if (m_enableMultiScatteringLUTPass)
+            {
+                m_skyMultiScatteringLUTPass->SetEnabled(true);
+                m_enableMultiScatteringLUTPass = false;
+            }
+            else if (m_skyMultiScatteringLUTPass->IsEnabled())
+            {
+                m_skyMultiScatteringLUTPass->SetEnabled(false);
+            }
+        }
+
         if (m_skyViewLUTPass) 
         {
             if (m_enableFastSky != m_skyViewLUTPass->IsEnabled())
@@ -370,6 +389,7 @@ namespace SkyAtmosphere
             m_skyVolumeLUTImage.reset();
             QueueForBuildAndInitialization();
             m_enableSkyTransmittanceLUTPass = true;
+            m_enableMultiScatteringLUTPass = true;
         }
 
         // avoid oversampling (too many loops) causing device removal
@@ -424,6 +444,7 @@ namespace SkyAtmosphere
             m_constants.m_absorptionDensity1ConstantTerm = 8.f / 3.f;
 
             m_enableSkyTransmittanceLUTPass = true;
+            m_enableMultiScatteringLUTPass = true;
         }
 
         m_atmosphereParams = params;
