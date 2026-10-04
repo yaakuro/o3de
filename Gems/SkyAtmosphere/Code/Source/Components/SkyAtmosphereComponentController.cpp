@@ -281,6 +281,11 @@ namespace SkyAtmosphere
         return false; 
     }
 
+    SkyAtmosphereFeatureProcessorInterface::AtmosphereId SkyAtmosphereComponentController::GetAtmosphereId()
+    {
+        return m_atmosphereId;
+    }
+
 
     void SkyAtmosphereComponentController::SetPlanetOriginMode(SkyAtmosphereComponentConfig::AtmosphereOrigin mode)
     {

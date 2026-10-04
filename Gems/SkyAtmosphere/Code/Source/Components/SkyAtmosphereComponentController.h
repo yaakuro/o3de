@@ -47,6 +47,7 @@ namespace SkyAtmosphere
         //! SkyAtmosphereRequestBus
         void SetEnabled(bool enabled) override;
         bool GetEnabled() override;
+        SkyAtmosphereFeatureProcessorInterface::AtmosphereId GetAtmosphereId() override;
 
         void SetPlanetOriginMode(SkyAtmosphereComponentConfig::AtmosphereOrigin mode) override;
         SkyAtmosphereComponentConfig::AtmosphereOrigin GetPlanetOriginMode() override;

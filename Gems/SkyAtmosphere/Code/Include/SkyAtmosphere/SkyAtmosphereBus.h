@@ -9,6 +9,7 @@
 #pragma once
 #include <AzCore/Component/ComponentBus.h>
 #include <SkyAtmosphere/SkyAtmosphereComponentConfig.h>
+#include <SkyAtmosphere/SkyAtmosphereFeatureProcessorInterface.h>
 
 namespace SkyAtmosphere
 {
@@ -28,6 +29,10 @@ namespace SkyAtmosphere
         virtual void SetEnabled(bool enabled) = 0;
         //! @return true if the current atmosphere is enabled 
         virtual bool GetEnabled() = 0;
+
+        //! @return this component's atmosphere id on the SkyAtmosphere feature processor, so other
+        //!         systems (e.g. clouds) can target this exact atmosphere when several exist.
+        virtual SkyAtmosphereFeatureProcessorInterface::AtmosphereId GetAtmosphereId() = 0;
 
         //! Set the planet origin mode
         //! @param mode Set the origin mode to use 
