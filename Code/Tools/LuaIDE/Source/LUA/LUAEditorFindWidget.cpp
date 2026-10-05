@@ -1,8 +1,22 @@
+/*
+ * Copyright (c) Contributors to the Open 3D Engine Project.
+ * For complete copyright and license terms please see the LICENSE at the root of this distribution.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ */
+
 #include "LUAEditorFindWidget.h"
 #include "AzCore/UserSettings/UserSettingsComponent.h"
 #include "LUAEditorView.hxx"
 #include "LUAEditorFindResults.hxx"
+#include "LUAEditorMainWindow.hxx"
+#include "LUAEditorBlockState.h"
 #include "Source/LUA/ui_LUAEditorFindWidget.h"
+
+#include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/Serialization/EditContext.h>
+#include <AzCore/Utils/Utils.h>
 
 #include <QListWidgetItem>
 #include <QPushButton>
@@ -84,49 +98,11 @@ namespace LUAEditor {
         }
     }
 
-    class LUAFindReplaceSettings
-            : public AZ::UserSettings {
-    public:
-        AZ_RTTI(LUAFindReplaceSettings, "{93331EE4-42C5-11F0-906D-BB605C163CFB}", AZ::UserSettings);
-        AZ_CLASS_ALLOCATOR(LUAFindReplaceSettings, AZ::SystemAllocator);
-
-        static void Reflect(AZ::ReflectContext *reflection);
-
-        bool GetCaseSensitive() const { return m_caseSensitive; }
-        void SetCaseSensitive(bool caseSensitive) { m_caseSensitive = caseSensitive; }
-        bool GetWrap() const { return m_wrap; }
-        void SetWrap(bool wrap) { m_wrap = wrap; }
-        bool GetRegularExpressions() const { return m_regularExpressions; }
-        void SetRegularExpressions(bool regularExpressions) { m_regularExpressions = regularExpressions; }
-        bool GetWholeWords() const { return m_wholeWords; }
-        void SetWholeWords(bool wholeWords) { m_wholeWords = wholeWords; }
-        unsigned int GetResultIndex() const { return m_resultIndex; }
-        void SetResultIndex(unsigned int resultIndex) { m_resultIndex = resultIndex; }
-
-        class LUAFindReplaceSerializationEvents : public AZ::SerializeContext::IEventHandler {
-            void OnReadEnd(void *classPtr) override {
-                // if(auto* settings = static_cast<LUAFindReplaceSettings*>(classPtr))
-                // {
-                //
-                //     qInfo() << "Finished reading" << settings.;
-                // }
-            }
-        };
-
-    private:
-        bool m_wrap = true;
-        bool m_caseSensitive = false;
-        bool m_regularExpressions = false;
-        bool m_wholeWords = false;
-        unsigned int m_resultIndex = 0;
-    };
-
     void LUAFindReplaceSettings::Reflect(AZ::ReflectContext *reflection) {
         AZ::SerializeContext *serializeContext = azrtti_cast<AZ::SerializeContext *>(reflection);
         if (serializeContext) {
             serializeContext->Class<LUAFindReplaceSettings, AZ::UserSettings>()
                     ->Version(1)
-                    ->EventHandler<LUAFindReplaceSerializationEvents>()
                     ->Field("m_wrap", &LUAFindReplaceSettings::m_wrap)
                     ->Field("m_caseSensitive", &LUAFindReplaceSettings::m_caseSensitive)
                     ->Field("m_regularExpressions", &LUAFindReplaceSettings::m_regularExpressions)
@@ -135,12 +111,9 @@ namespace LUAEditor {
 
             AZ::EditContext *editContext = serializeContext->GetEditContext();
             if (editContext) {
-                editContext->Class<LUAFindReplaceSettings>("Syntax Colors",
-                                                           "Customize the Lua IDE syntax and interface colors.")
+                editContext->Class<LUAFindReplaceSettings>("Lua Find Settings",
+                                                           "Persisted options for the Lua IDE find and replace bar.")
                         ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
-
-                        ->ClassElement(AZ::Edit::ClassElements::Group, "Font")
-                        ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
 
                         ->DataElement(AZ::Edit::UIHandlers::Default, &LUAFindReplaceSettings::m_wrap, "Wrap", "")
                         ->DataElement(AZ::Edit::UIHandlers::Default, &LUAFindReplaceSettings::m_caseSensitive,
@@ -168,7 +141,7 @@ namespace LUAEditor {
                     AZ::UserSettings::CreateFind<LUAFindReplaceSettings>(
                         AZ_CRC_CE("LUA Editor Find Settings"), AZ::UserSettings::CT_LOCAL);
 
-            findReplaceSettings->SetCaseSensitive(checked);
+            findReplaceSettings->SetWrap(checked);
 
             AZ::UserSettingsComponentRequestBus::Broadcast(&AZ::UserSettingsComponentRequestBus::Events::Save);
         });
@@ -915,30 +888,21 @@ namespace LUAEditor {
 
             view->SetCursorPosition(0, 0);
 
-            const int advance = static_cast<int>(replaceWithText.size());
-            int firstFoundLine = 0;
-            int firstFoundIndex = 0;
+            // Search forward without wrapping so the text just inserted by a replacement is never
+            // re-matched (which would loop forever when the replacement contains the search text).
+            int lastMatchStart = -1;
+            while (view->FindFirst(searchText, regEx, caseSensitive, wholeWords, false, true)) {
+                const int matchStart = view->GetTextCursor().selectionStart();
 
-            if (view->FindFirst(searchText, regEx, caseSensitive, wholeWords, true, true)) {
-                view->GetCursorPosition(firstFoundLine, firstFoundIndex);
+                // Guard against matches that do not advance the cursor (e.g. a zero-width regex match
+                // combined with an empty replacement), which would otherwise loop forever.
+                if (matchStart <= lastMatchStart) {
+                    break;
+                }
+                lastMatchStart = matchStart;
+
                 view->ReplaceSelectedText(replaceWithText);
                 totalReplacements++;
-
-                while (view->FindFirst(searchText, regEx, caseSensitive, wholeWords, true, true)) {
-                    int startLine = 0;
-                    int startIndex = 0;
-                    view->GetCursorPosition(startLine, startIndex);
-
-                    if (startLine == firstFoundLine && startIndex == firstFoundIndex) {
-                        break;
-                    }
-
-                    view->ReplaceSelectedText(replaceWithText);
-                    view->GetCursorPosition(startLine, startIndex);
-                    view->SetCursorPosition(startLine, startIndex + advance);
-
-                    totalReplacements++;
-                }
             }
         }
 
@@ -986,9 +950,10 @@ namespace LUAEditor {
             return;
         }
 
-        // If main window is null, try to get it from the view widget (if it has a reference)
+        // If main window is null we cannot populate a results widget, so bail out.
         if (!pLUAEditorMainWindow) {
-            AZ_TracePrintf("LUAEditorFindWidget", "Warning: pLUAEditorMainWindow is null, trying to get from view\n");
+            AZ_TracePrintf("LUAEditorFindWidget", "Error: pLUAEditorMainWindow is null\n");
+            return;
         }
 
         // Get the current result index from the FindResultsWidget context menu
@@ -1128,8 +1093,8 @@ namespace LUAEditor {
             luaFindTabWidget->activateWindow();
             luaFindTabWidget->setFocus();
 
-            // Open the specific find view - using default index 0
-            pLUAEditorMainWindow->OnOpenFindView(0);
+            // Open the find view matching the results widget we just populated.
+            pLUAEditorMainWindow->OnOpenFindView(widgetIndex);
         } else {
             AZ_TracePrintf("LUAEditorFindWidget", "Search text is empty - returning early\n");
         }

@@ -46,6 +46,7 @@
 #include "LUAWatchesDebuggerMessages.h"
 #include "LUAEditorViewMessages.h"
 #include "LUAContextControlMessages.h"
+#include "LUAEditorFindWidget.h"
 
 namespace LUAEditor
 {
@@ -2380,6 +2381,7 @@ namespace LUAEditor
             LUAEditorMainWindowSavedState::Reflect(reflection);
             LUAEditorContextSavedState::Reflect(reflection);
             SyntaxStyleSettings::Reflect(reflection);
+            LUAFindReplaceSettings::Reflect(reflection);
 
             serializeContext->Class<Context>()
                 ->Version(10)

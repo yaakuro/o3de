@@ -32,19 +32,6 @@
 
 namespace LUAEditor
 {
-    struct FindOperationImpl
-    {
-        AZ_CLASS_ALLOCATOR(FindOperationImpl, AZ::SystemAllocator);
-
-        QTextCursor m_cursor;
-        QString m_searchString;
-        bool m_isRegularExpression;
-        bool m_isCaseSensitiveSearch;
-        bool m_wholeWord;
-        bool m_wrap;
-        bool m_searchDown;
-    };
-
     LUAViewWidget::FindOperation::FindOperation()
         : m_impl(nullptr)
     {

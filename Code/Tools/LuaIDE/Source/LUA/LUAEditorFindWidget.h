@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) Contributors to the Open 3D Engine Project.
+ * For complete copyright and license terms please see the LICENSE at the root of this distribution.
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ *
+ */
+
 #pragma once
 
 #if !defined(Q_MOC_RUN)
@@ -11,6 +19,9 @@
 #include <AzCore/std/string/string.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/Memory/SystemAllocator.h>
+#if !defined(Q_MOC_RUN)
+#include <AzCore/UserSettings/UserSettings.h>
+#endif
 
 namespace Ui {
     class LUAEditorFindWidget;
@@ -18,6 +29,36 @@ namespace Ui {
 
 namespace LUAEditor {
     class FindResults;
+
+    // Persisted find/replace options for the Lua IDE.
+    // Registered with the serialize context from Context::Reflect so the values are saved and loaded.
+    class LUAFindReplaceSettings
+        : public AZ::UserSettings
+    {
+    public:
+        AZ_RTTI(LUAFindReplaceSettings, "{93331EE4-42C5-11F0-906D-BB605C163CFB}", AZ::UserSettings);
+        AZ_CLASS_ALLOCATOR(LUAFindReplaceSettings, AZ::SystemAllocator);
+
+        static void Reflect(AZ::ReflectContext *reflection);
+
+        bool GetCaseSensitive() const { return m_caseSensitive; }
+        void SetCaseSensitive(bool caseSensitive) { m_caseSensitive = caseSensitive; }
+        bool GetWrap() const { return m_wrap; }
+        void SetWrap(bool wrap) { m_wrap = wrap; }
+        bool GetRegularExpressions() const { return m_regularExpressions; }
+        void SetRegularExpressions(bool regularExpressions) { m_regularExpressions = regularExpressions; }
+        bool GetWholeWords() const { return m_wholeWords; }
+        void SetWholeWords(bool wholeWords) { m_wholeWords = wholeWords; }
+        unsigned int GetResultIndex() const { return m_resultIndex; }
+        void SetResultIndex(unsigned int resultIndex) { m_resultIndex = resultIndex; }
+
+    private:
+        bool m_wrap = true;
+        bool m_caseSensitive = false;
+        bool m_regularExpressions = false;
+        bool m_wholeWords = false;
+        unsigned int m_resultIndex = 0;
+    };
 
     class FindResultsWidget
     : public QWidget

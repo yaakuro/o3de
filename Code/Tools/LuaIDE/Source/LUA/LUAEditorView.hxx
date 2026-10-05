@@ -35,7 +35,19 @@ namespace AzToolsFramework
 
 namespace LUAEditor
 {
-    struct FindOperationImpl;
+    // Shared definition so both LUAViewWidget and LUAEditorFindWidget can access the find state.
+    struct FindOperationImpl
+    {
+        AZ_CLASS_ALLOCATOR(FindOperationImpl, AZ::SystemAllocator);
+
+        QTextCursor m_cursor;
+        QString m_searchString;
+        bool m_isRegularExpression;
+        bool m_isCaseSensitiveSearch;
+        bool m_wholeWord;
+        bool m_wrap;
+        bool m_searchDown;
+    };
     class LUAEditorFindWidget;
 
     // this is just a wrapper so we can override close events and so on
