@@ -9,6 +9,7 @@
 #pragma once
 
 #include <Atom/RPI.Reflect/Image/Image.h>
+#include <Atom/RHI.Reflect/ImageDescriptor.h>
 #include <Atom/RPI.Public/Configuration.h>
 #include <Atom/RPI.Public/Image/StreamingImageContext.h>
 
@@ -83,6 +84,18 @@ namespace AZ
                 RHI::ImageDimension imageDimension,
                 RHI::Size imageSize,
                 RHI::Format imageFormat,
+                const void* imageData,
+                size_t imageDataSize,
+                Uuid id = Uuid::CreateRandom());
+
+            //! Helper method to instantiate a single-mip streaming image from CPU data using a full
+            //! RHI::ImageDescriptor. Unlike the ImageDimension overload this can create cubemaps and
+            //! texture arrays: set m_isCubemap / m_arraySize on the descriptor. `imageData` is the
+            //! mip-0 data laid out as m_arraySize sub-images back to back (cube face order
+            //! +X, -X, +Y, -Y, +Z, -Z).
+            static Data::Instance<StreamingImage> CreateFromCpuData(
+                const StreamingImagePool& streamingImagePool,
+                const RHI::ImageDescriptor& imageDescriptor,
                 const void* imageData,
                 size_t imageDataSize,
                 Uuid id = Uuid::CreateRandom());

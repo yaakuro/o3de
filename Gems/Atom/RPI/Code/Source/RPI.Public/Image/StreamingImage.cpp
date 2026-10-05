@@ -41,20 +41,40 @@ namespace AZ
             size_t imageDataSize,
             Uuid id)
         {
-            const Data::InstanceId instanceId = Data::InstanceId::CreateUuid(id);
-            Data::Instance<StreamingImage> existingImage = Data::InstanceDatabase<StreamingImage>::Instance().Find(instanceId);
-            AZ_Error("StreamingImage", !existingImage, "StreamingImage::CreateFromCpuData found an existing entry in the instance database for the provided id.");
-
             RHI::ImageDescriptor imageDescriptor;
             imageDescriptor.m_bindFlags = RHI::ImageBindFlags::ShaderRead;
             imageDescriptor.m_dimension = imageDimension;
             imageDescriptor.m_size = imageSize;
             imageDescriptor.m_format = imageFormat;
+            return CreateFromCpuData(streamingImagePool, imageDescriptor, imageData, imageDataSize, id);
+        }
+
+        Data::Instance<StreamingImage> StreamingImage::CreateFromCpuData(
+            const StreamingImagePool& streamingImagePool,
+            const RHI::ImageDescriptor& imageDescriptorIn,
+            const void* imageData,
+            size_t imageDataSize,
+            Uuid id)
+        {
+            RHI::ImageDescriptor imageDescriptor = imageDescriptorIn;
+            // The CPU-data path is for sampled images.
+            imageDescriptor.m_bindFlags |= RHI::ImageBindFlags::ShaderRead;
+            if (imageDescriptor.m_arraySize == 0)
+            {
+                imageDescriptor.m_arraySize = 1;
+            }
+
+            const Data::InstanceId instanceId = Data::InstanceId::CreateUuid(id);
+            Data::Instance<StreamingImage> existingImage = Data::InstanceDatabase<StreamingImage>::Instance().Find(instanceId);
+            AZ_Error("StreamingImage", !existingImage, "StreamingImage::CreateFromCpuData found an existing entry in the instance database for the provided id.");
 
             const RHI::DeviceImageSubresourceLayout imageSubresourceLayout =
                 RHI::GetImageSubresourceLayout(imageDescriptor, RHI::ImageSubresource{});
 
-            const size_t expectedImageDataSize = imageSubresourceLayout.m_bytesPerImage * imageDescriptor.m_size.m_depth;
+            // One sub-image is one array slice - a cube face for a cube map, or (arraySize 1) the whole
+            // depth of a 3D texture. The full data is the arraySize of them back to back.
+            const size_t subImageBytes = imageSubresourceLayout.m_bytesPerImage * imageDescriptor.m_size.m_depth;
+            const size_t expectedImageDataSize = subImageBytes * imageDescriptor.m_arraySize;
             if (expectedImageDataSize != imageDataSize)
             {
                 AZ_Error("StreamingImage", false, "StreamingImage::CreateFromCpuData expected '%d' bytes of image data, but got '%d' instead.", expectedImageDataSize, imageDataSize);
@@ -66,9 +86,13 @@ namespace AZ
             // Construct the mip chain asset.
             {
                 ImageMipChainAssetCreator assetCreator;
-                assetCreator.Begin(Uuid::CreateRandom(), 1, 1);
+                assetCreator.Begin(Uuid::CreateRandom(), 1, imageDescriptor.m_arraySize);
                 assetCreator.BeginMip(imageSubresourceLayout);
-                assetCreator.AddSubImage(imageData, expectedImageDataSize);
+                const uint8_t* subImageData = static_cast<const uint8_t*>(imageData);
+                for (uint16_t arrayIndex = 0; arrayIndex < imageDescriptor.m_arraySize; ++arrayIndex)
+                {
+                    assetCreator.AddSubImage(subImageData + arrayIndex * subImageBytes, subImageBytes);
+                }
                 assetCreator.EndMip();
                 if (!assetCreator.End(mipChainAsset))
                 {
