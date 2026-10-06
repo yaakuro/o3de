@@ -57,6 +57,7 @@ namespace AssetUtilities
     inline constexpr char EnableBuilderDebugFlagOptionName[] = "enableBuilderDebugFlag";
     inline constexpr char SkipInitialScanOptionName[] = "initialScanSkippingEnabled";
     inline constexpr char VerboseLoggingOptionName[] = "verboseLogging";
+    inline constexpr char GroupSourceAssetRootsOptionName[] = "groupSourceAssetRoots";
 
     //! You can read and write any sub-keys to this key and it will be persisted to the project user registry folder:
     inline constexpr AZStd::string_view AssetProcessorUserSettingsRootKey = "/O3DE/AssetProcessor/UserSettings";

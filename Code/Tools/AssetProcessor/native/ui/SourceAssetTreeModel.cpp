@@ -11,6 +11,9 @@
 
 #include <AzCore/Component/TickBus.h>
 #include <AzCore/IO/Path/Path.h>
+#include <AzCore/Settings/SettingsRegistry.h>
+#include <AzCore/Utils/Utils.h>
+#include <AzFramework/Gem/GemInfo.h>
 #include <native/utilities/assetUtils.h>
 #include <native/utilities/IPathConversion.h>
 #include <AzCore/Console/IConsole.h>
@@ -31,6 +34,10 @@ namespace AssetProcessor
 
     void SourceAssetTreeModel::ResetModel()
     {
+        // Defaults to the legacy view (relative to the engine root) unless the user opts in to the
+        // grouped root view through the Settings tab.
+        m_groupSourceAssetRoots = AssetUtilities::GetUserSetting<bool>(AssetUtilities::GroupSourceAssetRootsOptionName, false);
+
         // We need m_root to contain SourceAssetTreeItemData to show the stat column
         m_root.reset(new AssetTreeItem(
             AZStd::make_shared<SourceAssetTreeItemData>(nullptr, nullptr, "", "", true, AzToolsFramework::AssetDatabase::InvalidEntryId),
@@ -137,6 +144,133 @@ namespace AssetProcessor
         }
     }
 
+    void SourceAssetTreeModel::EnsureSourceRootsInitialized()
+    {
+        if (!m_assetRootSet)
+        {
+            m_assetRootSet = AssetUtilities::ComputeAssetRoot(m_assetRoot, nullptr);
+        }
+
+        if (m_sourceRootsInitialized)
+        {
+            return;
+        }
+        m_sourceRootsInitialized = true;
+
+        m_projectRoot = AZ::IO::Path(AZ::Utils::GetProjectPath()).LexicallyNormal();
+
+        AZ::IO::Path engineRoot;
+        if (m_assetRootSet)
+        {
+            engineRoot = AZ::IO::Path(m_assetRoot.absolutePath().toUtf8().constData()).LexicallyNormal();
+        }
+
+        AZ::SettingsRegistryInterface* settingsRegistry = AZ::SettingsRegistry::Get();
+        if (!settingsRegistry)
+        {
+            return;
+        }
+
+        AZStd::vector<AzFramework::GemInfo> gemInfoList;
+        if (!AzFramework::GetGemsInfo(gemInfoList, *settingsRegistry))
+        {
+            return;
+        }
+
+        for (const AzFramework::GemInfo& gemInfo : gemInfoList)
+        {
+            for (const AZ::IO::Path& gemSourcePath : gemInfo.m_absoluteSourcePaths)
+            {
+                const AZ::IO::Path normalizedGemSourcePath = gemSourcePath.LexicallyNormal();
+
+                // Engine and project gems are already grouped by the engine root and project root respectively.
+                if ((!engineRoot.empty() && normalizedGemSourcePath.IsRelativeTo(engineRoot)) ||
+                    (!m_projectRoot.empty() && normalizedGemSourcePath.IsRelativeTo(m_projectRoot)))
+                {
+                    continue;
+                }
+                m_externalGemSourcePaths.push_back(normalizedGemSourcePath);
+            }
+        }
+    }
+
+    AZ::IO::Path SourceAssetTreeModel::ComputeDisplayPath(
+        const AzToolsFramework::AssetDatabase::ScanFolderDatabaseEntry& scanFolder, const AZStd::string& sourceName)
+    {
+        if (!m_assetRootSet)
+        {
+            m_assetRootSet = AssetUtilities::ComputeAssetRoot(m_assetRoot, nullptr);
+        }
+
+        const AZ::IO::Path absoluteSourcePath = (AZ::IO::Path(scanFolder.m_scanFolder) / sourceName).LexicallyNormal();
+
+        const AZ::IO::Path engineRoot =
+            m_assetRootSet ? AZ::IO::Path(m_assetRoot.absolutePath().toUtf8().constData()).LexicallyNormal() : AZ::IO::Path();
+
+        if (!m_groupSourceAssetRoots)
+        {
+            // Legacy behavior: paths are relative to the engine root. When the project or its gems
+            // live outside of the engine install this produces a chain of ".." folders.
+            if (m_assetRootSet)
+            {
+                return absoluteSourcePath.LexicallyProximate(engineRoot);
+            }
+            return absoluteSourcePath;
+        }
+
+        EnsureSourceRootsInitialized();
+
+        // Prefixes the path relative to containerPath with the container's folder name, so that a
+        // single grouped root (e.g. the project name or the gems directory) is shown at the top level.
+        auto GroupPath = [](const AZ::IO::Path& containerPath, const AZ::IO::Path& sourcePath)
+        {
+            AZ::IO::Path groupedPath(containerPath.Filename());
+            groupedPath /= sourcePath.LexicallyProximate(containerPath);
+            return groupedPath;
+        };
+
+        // It's common for Open 3D Engine game projects and scan folders to be located outside of the
+        // engine root. Rather than producing a chain of ".." folders that lead out of the engine root,
+        // project sources are grouped under a single folder named after the project.
+        if (!m_projectRoot.empty() && absoluteSourcePath != m_projectRoot && absoluteSourcePath.IsRelativeTo(m_projectRoot))
+        {
+            return GroupPath(m_projectRoot, absoluteSourcePath);
+        }
+
+        // Engine sources keep their existing layout, relative to the engine root.
+        if (!engineRoot.empty() && absoluteSourcePath != engineRoot && absoluteSourcePath.IsRelativeTo(engineRoot))
+        {
+            return absoluteSourcePath.LexicallyProximate(engineRoot);
+        }
+
+        // External gems are grouped under a single folder named after the directory containing the gem.
+        for (const AZ::IO::Path& gemSourcePath : m_externalGemSourcePaths)
+        {
+            if (absoluteSourcePath != gemSourcePath && absoluteSourcePath.IsRelativeTo(gemSourcePath))
+            {
+                const AZ::IO::Path gemContainerPath = gemSourcePath.ParentPath();
+                if (!gemContainerPath.empty())
+                {
+                    return GroupPath(gemContainerPath, absoluteSourcePath);
+                }
+            }
+        }
+
+        // Fall back to anchoring at the scan folder itself so that no ".." navigation is produced.
+        const AZ::IO::Path scanFolderContainerPath = AZ::IO::Path(scanFolder.m_scanFolder).LexicallyNormal().ParentPath();
+        if (!scanFolderContainerPath.empty() && absoluteSourcePath.IsRelativeTo(scanFolderContainerPath))
+        {
+            return GroupPath(scanFolderContainerPath, absoluteSourcePath);
+        }
+
+        if (m_assetRootSet)
+        {
+            return absoluteSourcePath.LexicallyProximate(engineRoot);
+        }
+
+        return absoluteSourcePath;
+    }
+
     void SourceAssetTreeModel::AddOrUpdateEntry(
         const AzToolsFramework::AssetDatabase::SourceDatabaseEntry& source,
         const AzToolsFramework::AssetDatabase::ScanFolderDatabaseEntry& scanFolder,
@@ -180,19 +314,7 @@ namespace AssetProcessor
         }
 
 
-        AZ::IO::Path fullPath = AZ::IO::Path(scanFolder.m_scanFolder) / source.m_sourceName;
-
-        // It's common for Open 3D Engine game projects and scan folders to be in a subfolder
-        // of the engine install. To improve readability of the source files, strip out
-        // that portion of the path if it overlaps.
-        if (!m_assetRootSet)
-        {
-            m_assetRootSet = AssetUtilities::ComputeAssetRoot(m_assetRoot, nullptr);
-        }
-        if (m_assetRootSet)
-        {
-            fullPath = fullPath.LexicallyProximate(m_assetRoot.absolutePath().toUtf8().constData());
-        }
+        AZ::IO::Path fullPath = ComputeDisplayPath(scanFolder, source.m_sourceName);
 
         if (fullPath.empty())
         {

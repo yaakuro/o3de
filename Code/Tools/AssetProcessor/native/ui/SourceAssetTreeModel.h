@@ -9,7 +9,9 @@
 
 #include "AssetTreeModel.h"
 #include <AzToolsFramework/API/AssetDatabaseBus.h>
+#include <AzCore/IO/Path/Path.h>
 #include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/vector.h>
 #include <native/assetprocessor.h>
 #include <native/utilities/ApplicationManagerAPI.h>
 #include <QDir>
@@ -47,10 +49,23 @@ namespace AssetProcessor
         void RemoveAssetTreeItem(AssetTreeItem* assetToRemove);
         void RemoveFoldersIfEmpty(AssetTreeItem* itemToCheck);
 
+        //! Lazily computes the project root and the list of external gem source paths used to
+        //! group the top level of the tree into meaningful roots instead of a chain of ".." folders.
+        void EnsureSourceRootsInitialized();
+
+        //! Computes the path (relative to the tree root, including any grouping folder) that should
+        //! be displayed for the given source file.
+        AZ::IO::Path ComputeDisplayPath(
+            const AzToolsFramework::AssetDatabase::ScanFolderDatabaseEntry& scanFolder, const AZStd::string& sourceName);
+
         AZStd::unordered_map<SourceAndScanID, AssetTreeItem*> m_sourceToTreeItem;
         AZStd::unordered_map<AZ::s64, AssetTreeItem*> m_sourceIdToTreeItem;
         QDir m_assetRoot;
+        AZ::IO::Path m_projectRoot;
+        AZStd::vector<AZ::IO::Path> m_externalGemSourcePaths;
         bool m_assetRootSet = false;
+        bool m_sourceRootsInitialized = false;
         bool m_intermediateAssets = false;
+        bool m_groupSourceAssetRoots = false;
     };
 }

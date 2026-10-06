@@ -602,6 +602,7 @@ void MainWindow::Activate()
     AzQtComponents::CheckBox::applyToggleSwitchStyle(ui->disableStartupScanCheckBox);
     AzQtComponents::CheckBox::applyToggleSwitchStyle(ui->debugOutputCheckBox);
     AzQtComponents::CheckBox::applyToggleSwitchStyle(ui->verboseLoggingCheckbox);
+    AzQtComponents::CheckBox::applyToggleSwitchStyle(ui->groupSourceAssetRootsCheckBox);
 
     const auto apm = m_guiApplicationManager->GetAssetProcessorManager();
 
@@ -610,6 +611,7 @@ void MainWindow::Activate()
     bool enableBuilderDebugFlag = AssetUtilities::GetUserSetting(AssetUtilities::EnableBuilderDebugFlagOptionName, apm->GetBuilderDebugFlag());
     bool initialScanSkippingEnabled = AssetUtilities::GetUserSetting(AssetUtilities::SkipInitialScanOptionName, apm->GetInitialScanSkippingFeatureEnabled());
     bool verboseLogDump = AssetUtilities::GetUserSetting(AssetUtilities::VerboseLoggingOptionName, false);
+    bool groupSourceAssetRoots = AssetUtilities::GetUserSetting(AssetUtilities::GroupSourceAssetRootsOptionName, false);
     // zero analysis flag
 
     apm->SetEnableModtimeSkippingFeature(zeroAnalysisMode);
@@ -622,6 +624,7 @@ void MainWindow::Activate()
     ui->debugOutputCheckBox->setCheckState(enableBuilderDebugFlag ? Qt::Checked : Qt::Unchecked);
     ui->disableStartupScanCheckBox->setCheckState(initialScanSkippingEnabled ? Qt::Checked : Qt::Unchecked);
     ui->verboseLoggingCheckbox->setCheckState(verboseLogDump ? Qt::Checked : Qt::Unchecked);
+    ui->groupSourceAssetRootsCheckBox->setCheckState(groupSourceAssetRoots ? Qt::Checked : Qt::Unchecked);
 
     QObject::connect(ui->modtimeSkippingCheckBox, &QCheckBox::checkStateChanged, this,
         [this](Qt::CheckState newCheckState)
@@ -659,6 +662,25 @@ void MainWindow::Activate()
         {
             bool newOption = newCheckState == Qt::Checked ? true : false;
             AssetUtilities::SetUserSetting(AssetUtilities::VerboseLoggingOptionName, newOption);
+        });
+
+     QObject::connect(
+        ui->groupSourceAssetRootsCheckBox,
+        &QCheckBox::checkStateChanged,
+        this,
+        [this](Qt::CheckState newCheckState)
+        {
+            bool newOption = newCheckState == Qt::Checked ? true : false;
+            AssetUtilities::SetUserSetting(AssetUtilities::GroupSourceAssetRootsOptionName, newOption);
+            // The grouping is applied while the model is populated, so rebuild the trees to reflect the change.
+            if (m_sourceModel)
+            {
+                m_sourceModel->Reset();
+            }
+            if (m_intermediateModel)
+            {
+                m_intermediateModel->Reset();
+            }
         });
 
     // Shared Cache tab:
