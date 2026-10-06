@@ -14,6 +14,7 @@
 #include <Atom/RPI.Reflect/Image/StreamingImageAssetCreator.h>
 
 #include <Atom/RHI/Factory.h>
+#include <Atom/RHI.Reflect/ImageViewDescriptor.h>
 
 #include <AzCore/Instance/InstanceDatabase.h>
 
@@ -108,6 +109,19 @@ namespace AZ
                 StreamingImageAssetCreator assetCreator;
                 assetCreator.Begin(id);
                 assetCreator.SetImageDescriptor(imageDescriptor);
+                // StreamingImage::Init binds the asset's ImageViewDescriptor as the image's default
+                // view (m_imageView = m_image->GetImageView(...)). A cubemap image needs a cube view
+                // as well, or an SRG TextureCube slot rejects it ("the shader expected a cubemap").
+                // Derive the view from the image descriptor; otherwise the view stays the default 2D
+                // one and cube consumers fail.
+                if (imageDescriptor.m_isCubemap)
+                {
+                    const uint16_t mipSliceMax = imageDescriptor.m_mipLevels > 0
+                        ? static_cast<uint16_t>(imageDescriptor.m_mipLevels - 1)
+                        : 0;
+                    assetCreator.SetImageViewDescriptor(RHI::ImageViewDescriptor::CreateCubemap(
+                        imageDescriptor.m_format, 0, mipSliceMax));
+                }
                 assetCreator.AddMipChainAsset(*mipChainAsset.Get());
                 assetCreator.SetFlags(StreamingImageFlags::NotStreamable);
                 assetCreator.SetPoolAssetId(streamingImagePool.GetAssetId());
