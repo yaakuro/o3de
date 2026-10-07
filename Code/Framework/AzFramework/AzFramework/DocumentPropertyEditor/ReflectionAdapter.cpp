@@ -657,9 +657,14 @@ namespace AZ::DocumentPropertyEditor
                 [valuePointer, valueType, this](const Dom::Value& newValue)
                 {
                     AZ::JsonSerializationResult::ResultCode resultCode(AZ::JsonSerializationResult::Tasks::ReadField);
+                    // Containers always arrive as their full value, so they must never take the
+                    // diff path below: loading a diff into a container appends to it instead of
+                    // replacing it (the else branch clears it instead).
+                    const AZ::Serialize::ClassData* classData = m_serializeContext->FindClassData(valueType);
+                    const bool isContainer = classData != nullptr && classData->m_container != nullptr;
                     // marshal this new value into a pointer for use by the Json serializer if a pointer is being stored
                     if (auto marshalledPointer = AZ::Dom::Utils::TryMarshalValueToPointer(newValue, valueType);
-                        marshalledPointer != nullptr)
+                        marshalledPointer != nullptr && !isContainer)
                     {
                         rapidjson::Document buffer;
                         JsonSerializerSettings serializeSettings;
@@ -1159,9 +1164,14 @@ namespace AZ::DocumentPropertyEditor
                         [valuePointer = access.Get(), valueType = access.GetType(), this](const Dom::Value& newValue)
                     {
                         AZ::JsonSerializationResult::ResultCode resultCode(AZ::JsonSerializationResult::Tasks::ReadField);
+                        // Containers always arrive as their full value, so they must never take the
+                        // diff path below: loading a diff into a container appends to it instead of
+                        // replacing it (the else branch clears it instead).
+                        const AZ::Serialize::ClassData* classData = m_serializeContext->FindClassData(valueType);
+                        const bool isContainer = classData != nullptr && classData->m_container != nullptr;
                         // marshal this new value into a pointer for use by the Json serializer if a pointer is being stored
                         if (auto marshalledPointer = AZ::Dom::Utils::TryMarshalValueToPointer(newValue, valueType);
-                            marshalledPointer != nullptr)
+                            marshalledPointer != nullptr && !isContainer)
                         {
                             rapidjson::Document buffer;
                             JsonSerializerSettings serializeSettings;
@@ -1199,7 +1209,11 @@ namespace AZ::DocumentPropertyEditor
                         else
                         {
                             // Otherwise use Json Serialization to copy the Dom Value directly into the valuePointer address
-                            resultCode = AZ::Dom::Utils::LoadViaJsonSerialization(valuePointer, valueType, newValue);
+                            // containers will always show their full value, so clear them
+                            JsonDeserializerSettings settings;
+                            settings.m_serializeContext = m_serializeContext;
+                            settings.m_clearContainers = true;
+                            resultCode = AZ::Dom::Utils::LoadViaJsonSerialization(valuePointer, valueType, newValue, settings);
                             if (resultCode.GetProcessing() == AZ::JsonSerializationResult::Processing::Halted)
                             {
                                 AZ_Error(
