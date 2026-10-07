@@ -29,6 +29,11 @@
 #include <QTextStream>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QPointer>
+#include <QProgressDialog>
 
 namespace LUAEditor {
     FindResultsWidget::FindResultsWidget(QWidget *parent)
@@ -45,6 +50,13 @@ namespace LUAEditor {
         m_radioGroup->addButton(m_result2Radio);
         m_radioGroup->addButton(m_result3Radio);
         m_radioGroup->addButton(m_result4Radio);
+
+        // Report user changes so the selected results window can be persisted.
+        const auto reportResultIndex = [this](int index) { emit ResultIndexChanged(index); };
+        connect(m_result1Radio, &QRadioButton::clicked, this, [=] { reportResultIndex(0); });
+        connect(m_result2Radio, &QRadioButton::clicked, this, [=] { reportResultIndex(1); });
+        connect(m_result3Radio, &QRadioButton::clicked, this, [=] { reportResultIndex(2); });
+        connect(m_result4Radio, &QRadioButton::clicked, this, [=] { reportResultIndex(3); });
 
         // Set initial state - first button checked
         m_result1Radio->setChecked(true);
@@ -181,6 +193,19 @@ namespace LUAEditor {
         auto *widgetAction = new QWidgetAction(this);
         widgetAction->setDefaultWidget(m_findResultsWidget);
         m_menu->QWidget::addAction(widgetAction);
+
+        // Restore the persisted results window selection and persist future changes.
+        m_findResultsWidget->SetCurrentResultIndex(m_resultIndex);
+        connect(m_findResultsWidget, &FindResultsWidget::ResultIndexChanged, this, [this](int index) {
+            m_resultIndex = index;
+            AZStd::intrusive_ptr<LUAFindReplaceSettings> findReplaceSettings =
+                    AZ::UserSettings::CreateFind<LUAFindReplaceSettings>(
+                        AZ_CRC_CE("LUA Editor Find Settings"), AZ::UserSettings::CT_LOCAL);
+
+            findReplaceSettings->SetResultIndex(static_cast<unsigned int>(index));
+
+            AZ::UserSettingsComponentRequestBus::Broadcast(&AZ::UserSettingsComponentRequestBus::Events::Save);
+        });
     }
 
     void LUAEditorFindWidget::SetFindInFilesMode() const {
@@ -377,6 +402,16 @@ namespace LUAEditor {
         state ? QWidget::show() : QWidget::hide();
     }
 
+    void LUAEditorFindWidget::FocusSearchInput() {
+        ui->lineEditFindText->setFocus();
+        ui->lineEditFindText->selectAll();
+    }
+
+    void LUAEditorFindWidget::FocusReplaceInput() {
+        ui->lineEditReplaceText->setFocus();
+        ui->lineEditReplaceText->selectAll();
+    }
+
     void LUAEditorFindWidget::OnFindNextClicked() {
         if (!m_viewWidget) {
             return;
@@ -438,135 +473,82 @@ namespace LUAEditor {
         OnFindNextClicked();
     }
 
-    void LUAEditorFindWidget::FindInOpenDocs() {
-        for (auto *view: pLUAEditorMainWindow->GetAllViews()) {
-            auto assetFileName(view->m_Info.m_assetName + ".lua");
-            auto qAssetName = assetFileName.c_str();
+    void LUAEditorFindWidget::CollectMatchesOnLine(const QString &line, const QString &searchText,
+                                                   AZStd::vector<AZStd::pair<int, int>> &matches,
+                                                   const QRegularExpression *prebuiltRegex) const {
+        if (line.isEmpty() || searchText.isEmpty()) {
+            return;
+        }
 
-            // Save current cursor position to restore it later
-            int originalLine = 0;
-            int originalIndex = 0;
-            view->GetCursorPosition(originalLine, originalIndex);
+        const bool caseSensitive = ui->pushButtonCaseSensitive->isChecked();
+        const bool isRegex = ui->pushButtonRegEx->isChecked();
+        const bool wholeWords = ui->pushButtonWholeWords->isChecked();
 
-            // Start search from the beginning of the document
-            view->SetCursorPosition(0, 0);
+        if (isRegex || wholeWords) {
+            // Prefer the expression built once for the whole scan over compiling one per line.
+            const QRegularExpression regex = prebuiltRegex ? *prebuiltRegex : BuildSearchRegex(searchText);
 
-            // Check if we've already processed this file
-            if (m_resultList.find(qAssetName) == m_resultList.end()) {
-                ResultDocument doc;
-                doc.m_assetId = view->m_Info.m_assetId;
-                m_resultList[qAssetName] = doc;
+            auto matchIt = regex.globalMatch(line);
+            while (matchIt.hasNext()) {
+                const QRegularExpressionMatch match = matchIt.next();
+                matches.push_back(AZStd::make_pair(static_cast<int>(match.capturedStart()),
+                                                   static_cast<int>(match.capturedLength())));
             }
-
-            // Find all matches in this document
-            LUAViewWidget::FindOperation findOperation =
-                    view->FindFirst(ui->lineEditFindText->text(),
-                                    ui->pushButtonRegEx->isChecked(),
-                                    ui->pushButtonCaseSensitive->isChecked(),
-                                    ui->pushButtonWholeWords->isChecked(),
-                                    false,
-                                    true);
-
-            // Process all matches in this document
-            while (findOperation) {
-                int line = 0;
-                int index = 0;
-                view->GetCursorPosition(line, index);
-
-                // FindNext/FindFirst moves the cursor to the end of the match.
-                // In QTextDocument, if the match ends at the end of a line, the cursor position
-                // might be at the start of the next block.
-                // We should use the selection's start position to determine the correct line number.
-                auto cursor = findOperation.m_impl->m_cursor;
-                int matchLine = cursor.blockNumber() + 1;
-                if (cursor.hasSelection()) {
-                    QTextCursor tempCursor = cursor;
-                    tempCursor.setPosition(cursor.selectionStart());
-                    matchLine = tempCursor.blockNumber() + 1;
-                }
-
-                ResultEntry entry;
-                entry.m_lineNumber = matchLine;
-                entry.m_lineText = view->GetLineText(matchLine - 1);
-
-                // Find all matches in the line if regex or whole word mode is used
-                if (ui->pushButtonRegEx->isChecked() || ui->pushButtonWholeWords->isChecked()) {
-                    QRegularExpression regex(
-                        ui->lineEditFindText->text(),
-                        ui->pushButtonCaseSensitive->isChecked()
-                            ? QRegularExpression::NoPatternOption
-                            : QRegularExpression::CaseInsensitiveOption);
-
-                    QRegularExpressionMatch match = regex.match(entry.m_lineText);
-                    while (match.hasMatch()) {
-                        const int length = static_cast<int>(match.capturedLength());
-                        entry.m_matches.push_back(AZStd::make_pair(static_cast<int>(match.capturedStart()), length));
-                        match = regex.match(entry.m_lineText, match.capturedStart() + length);
-                    }
-                } else {
-                    // Regular search
-                    int pos = 0;
-                    while (pos >= 0) {
-                        pos = entry.m_lineText.indexOf(ui->lineEditFindText->text(), pos,
-                                                       ui->pushButtonCaseSensitive->isChecked()
-                                                           ? Qt::CaseSensitive
-                                                           : Qt::CaseInsensitive);
-
-                        if (pos >= 0) {
-                            entry.m_matches.push_back(
-                                AZStd::make_pair(pos, static_cast<int>(ui->lineEditFindText->text().length())));
-                            pos++;
-                        }
-                    }
-                }
-
-                // Add to results list
-                m_resultList[qAssetName].m_entries.push_back(entry);
-
-                view->FindNext(findOperation);
+        } else {
+            const Qt::CaseSensitivity cs = caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
+            int pos = 0;
+            while ((pos = line.indexOf(searchText, pos, cs)) >= 0) {
+                matches.push_back(AZStd::make_pair(pos, searchText.length()));
+                pos += searchText.length();
             }
-
-            // Restore original cursor position
-            view->SetCursorPosition(originalLine, originalIndex);
         }
     }
 
-    void LUAEditorFindWidget::FindInCurrentDoc() {
-        auto *view = m_viewWidget;
+    QRegularExpression LUAEditorFindWidget::BuildSearchRegex(const QString &searchText) const {
+        const bool isRegex = ui->pushButtonRegEx->isChecked();
+        const bool wholeWords = ui->pushButtonWholeWords->isChecked();
+        if (!isRegex && !wholeWords) {
+            return QRegularExpression();
+        }
+
+        QString pattern = isRegex ? searchText : QRegularExpression::escape(searchText);
+        if (wholeWords) {
+            pattern = "\\b" + pattern + "\\b";
+        }
+        return QRegularExpression(pattern, ui->pushButtonCaseSensitive->isChecked()
+                                              ? QRegularExpression::NoPatternOption
+                                              : QRegularExpression::CaseInsensitiveOption);
+    }
+
+    void LUAEditorFindWidget::CollectDocumentResults(LUAViewWidget *view) {
         if (!view) {
             return;
         }
 
-        auto assetFileName(view->m_Info.m_assetName + ".lua");
-        auto qAssetName = assetFileName.c_str();
+        const auto assetFileName(view->m_Info.m_assetName + ".lua");
+        const auto qAssetName = assetFileName.c_str();
 
-        // Save current cursor position to restore it later
+        // Save current cursor position to restore it later.
         int originalLine = 0;
         int originalIndex = 0;
         view->GetCursorPosition(originalLine, originalIndex);
 
-        // Start search from the beginning of the document
+        // Start search from the beginning of the document without wrapping.
         view->SetCursorPosition(0, 0);
 
-        ResultDocument doc;
-        doc.m_assetId = view->m_Info.m_assetId;
-        m_resultList[qAssetName] = doc;
+        const QString searchText = ui->lineEditFindText->text();
+        AZStd::vector<ResultEntry> entries;
 
-        // Find all matches in this document
         LUAViewWidget::FindOperation findOperation =
-                view->FindFirst(ui->lineEditFindText->text(),
+                view->FindFirst(searchText,
                                 ui->pushButtonRegEx->isChecked(),
                                 ui->pushButtonCaseSensitive->isChecked(),
                                 ui->pushButtonWholeWords->isChecked(),
                                 false,
                                 true);
 
-        // Process all matches in this document
+        // Process all matches in this document. FindNext advances the operation in place.
         while (findOperation) {
-            int line = 0;
-            int index = 0;
-            view->GetCursorPosition(line, index);
-
             // FindNext/FindFirst moves the cursor to the end of the match.
             // In QTextDocument, if the match ends at the end of a line, the cursor position
             // might be at the start of the next block.
@@ -579,204 +561,189 @@ namespace LUAEditor {
                 matchLine = tempCursor.blockNumber() + 1;
             }
 
-            ResultEntry entry;
-            entry.m_lineNumber = matchLine;
-            entry.m_lineText = view->GetLineText(matchLine - 1);
-
-            // Find all matches in the line if regex or whole word mode is used
-            if (ui->pushButtonRegEx->isChecked() || ui->pushButtonWholeWords->isChecked()) {
-                QRegularExpression regex(
-                    ui->lineEditFindText->text(),
-                    ui->pushButtonCaseSensitive->isChecked()
-                        ? QRegularExpression::NoPatternOption
-                        : QRegularExpression::CaseInsensitiveOption);
-
-                QRegularExpressionMatch match = regex.match(entry.m_lineText);
-                while (match.hasMatch()) {
-                    const int length = static_cast<int>(match.capturedLength());
-                    entry.m_matches.push_back(AZStd::make_pair(static_cast<int>(match.capturedStart()), length));
-                    match = regex.match(entry.m_lineText, match.capturedStart() + length);
+            // One entry per line: consecutive hits on the same line share a single result row.
+            if (entries.empty() || entries.back().m_lineNumber != matchLine) {
+                ResultEntry entry;
+                entry.m_lineNumber = matchLine;
+                entry.m_lineText = view->GetLineText(matchLine - 1);
+                CollectMatchesOnLine(entry.m_lineText, searchText, entry.m_matches);
+                if (entry.m_matches.empty()) {
+                    // A regex that spans multiple lines cannot be re-matched on a single line; keep the hit at column 0.
+                    entry.m_matches.push_back(AZStd::make_pair(0, 0));
                 }
-            } else {
-                // Regular search
-                int pos = 0;
-                while (pos >= 0) {
-                    pos = entry.m_lineText.indexOf(ui->lineEditFindText->text(), pos,
-                                                   ui->pushButtonCaseSensitive->isChecked()
-                                                       ? Qt::CaseSensitive
-                                                       : Qt::CaseInsensitive);
-
-                    if (pos >= 0) {
-                        entry.m_matches.push_back(
-                            AZStd::make_pair(pos, static_cast<int>(ui->lineEditFindText->text().length())));
-                        pos++;
-                    }
-                }
+                entries.push_back(std::move(entry));
             }
-
-            // Add to results list
-            m_resultList[qAssetName].m_entries.push_back(entry);
 
             view->FindNext(findOperation);
         }
 
-        // Restore original cursor position
+        // Only register documents that actually contain matches (no "0 hit" rows).
+        if (!entries.empty()) {
+            ResultDocument doc;
+            doc.m_assetId = view->m_Info.m_assetId;
+            doc.m_entries = std::move(entries);
+            m_resultList[qAssetName] = std::move(doc);
+        }
+
+        // Restore original cursor position.
         view->SetCursorPosition(originalLine, originalIndex);
     }
 
-    void LUAEditorFindWidget::FindInDirectory() {
-        if (m_searchDirectory.isEmpty()) {
+    void LUAEditorFindWidget::FindInOpenDocs() {
+        if (!pLUAEditorMainWindow) {
             return;
         }
 
-        const auto searchText = ui->lineEditFindText->text();
-        const auto caseSensitive = ui->pushButtonCaseSensitive->isChecked();
-        const auto isRegex = ui->pushButtonRegEx->isChecked();
-        const auto wholeWords = ui->pushButtonWholeWords->isChecked();
-
-        auto cs = caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
-        QRegularExpression regex;
-        if (isRegex || wholeWords) {
-            QString pattern = isRegex ? searchText : QRegularExpression::escape(searchText);
-            if (wholeWords) {
-                pattern = "\\b" + pattern + "\\b";
-            }
-            regex.setPattern(pattern);
-            if (!caseSensitive) {
-                regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
-            }
+        for (auto *view: pLUAEditorMainWindow->GetAllViews()) {
+            CollectDocumentResults(view);
         }
+    }
+
+    void LUAEditorFindWidget::FindInCurrentDoc() {
+        CollectDocumentResults(m_viewWidget);
+    }
+
+    void LUAEditorFindWidget::ScanDirectory(const QString &searchText) {
+        if (m_searchDirectory.isEmpty() || searchText.isEmpty()) {
+            return;
+        }
+
+        // Build the search expression once for the whole scan instead of once per line.
+        const bool useRegex = ui->pushButtonRegEx->isChecked() || ui->pushButtonWholeWords->isChecked();
+        const QRegularExpression regex = useRegex ? BuildSearchRegex(searchText) : QRegularExpression();
+
+        int resultLines = 0;
+        int filesScanned = 0;
 
         QDirIterator it(m_searchDirectory, QStringList() << "*.lua", QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
-            QString filePath = it.next();
+            const QString filePath = it.next();
+
+            // Keep the UI alive (and abortable) while walking a potentially huge directory tree.
+            if ((++filesScanned % 32) == 0 && !ScanStep(filePath)) {
+                return;
+            }
+
+            // Generated API dumps and other very large files would dominate the scan and the result list.
+            if (QFileInfo(filePath).size() > s_maxScannedFileSize) {
+                continue;
+            }
+
             QFile file(filePath);
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 continue;
             }
 
-            ResultDocument doc;
-            doc.m_assetId = filePath.toUtf8().data(); // Use full path as assetId for now
-
+            AZStd::vector<ResultEntry> entries;
             QTextStream in(&file);
             int lineNumber = 1;
             while (!in.atEnd()) {
-                QString line = in.readLine();
-                ResultEntry entry;
-                entry.m_lineNumber = lineNumber;
-                entry.m_lineText = line;
-
-                if (isRegex || wholeWords) {
-                    QRegularExpressionMatchIterator matchIt = regex.globalMatch(line);
-                    while (matchIt.hasNext()) {
-                        QRegularExpressionMatch match = matchIt.next();
-                        entry.m_matches.push_back(AZStd::make_pair(static_cast<int>(match.capturedStart()),
-                                                                   static_cast<int>(match.capturedLength())));
-                    }
-                } else {
-                    int pos = 0;
-                    while (pos >= 0) {
-                        pos = line.indexOf(searchText, pos, cs);
-                        if (pos >= 0) {
-                            entry.m_matches.push_back(AZStd::make_pair(pos, searchText.length()));
-                            pos += searchText.length();
-                        }
-                    }
+                const QString line = in.readLine();
+                if (in.status() != QTextStream::Ok) {
+                    // Do not spin on a stream that failed to read (broken/corrupt file).
+                    break;
                 }
 
-                if (!entry.m_matches.empty()) {
-                    if (!m_resultList.contains(filePath)) {
-                        m_resultList[filePath] = doc;
+                AZStd::vector<AZStd::pair<int, int>> matches;
+                CollectMatchesOnLine(line, searchText, matches, useRegex ? &regex : nullptr);
+                if (!matches.empty()) {
+                    ResultEntry entry;
+                    entry.m_lineNumber = lineNumber;
+                    entry.m_lineText = line;
+                    entry.m_matches = std::move(matches);
+                    entries.push_back(std::move(entry));
+
+                    if (++resultLines >= s_maxResultLines) {
+                        m_scanTruncated = true;
+                        break;
                     }
-                    m_resultList[filePath].m_entries.push_back(entry);
                 }
                 lineNumber++;
+            }
+
+            // Only register files that actually contain matches (no "0 hit" rows).
+            if (!entries.empty()) {
+                ResultDocument doc;
+                doc.m_assetId = filePath.toUtf8().data(); // Keep original-case path for file I/O
+                doc.m_entries = std::move(entries);
+                m_resultList[filePath] = std::move(doc);
+            }
+
+            if (m_scanTruncated) {
+                break;
             }
         }
     }
 
-    bool LUAEditorFindWidget::SearchInDirectory(QWidget *parentWidget, FindResults *resultsWidget,
-                                                const QString &searchText) {
-        if (m_searchDirectory.isEmpty() || !resultsWidget) {
+    bool LUAEditorFindWidget::ScanStep(const QString &currentFile) {
+        if (!m_scanProgress) {
+            return true;
+        }
+        if (m_scanProgress->wasCanceled()) {
+            m_scanCancelled = true;
             return false;
         }
 
-        m_resultList.clear();
+        m_scanProgress->setLabelText(tr("Searching \"%1\"...").arg(QDir::toNativeSeparators(currentFile)));
 
-        const auto caseSensitive = ui->pushButtonCaseSensitive->isChecked();
-        const auto isRegex = ui->pushButtonRegEx->isChecked();
-        const auto wholeWords = ui->pushButtonWholeWords->isChecked();
-
-        auto cs = caseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
-        QRegularExpression regex;
-        if (isRegex || wholeWords) {
-            QString pattern = isRegex ? searchText : QRegularExpression::escape(searchText);
-            if (wholeWords) {
-                pattern = "\\b" + pattern + "\\b";
-            }
-            regex.setPattern(pattern);
-            if (!caseSensitive) {
-                regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
-            }
+        // Pumping events keeps the progress dialog painting. Guard against the widget being
+        // destroyed while the nested event loop runs (the dialog is application modal, so this
+        // should not normally happen, but the check is cheap).
+        QPointer<LUAEditorFindWidget> selfGuard(this);
+        QCoreApplication::processEvents();
+        if (!selfGuard) {
+            return false;
         }
 
-        QDirIterator it(m_searchDirectory, QStringList() << "*.lua", QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            QString filePath = it.next();
-            QFile file(filePath);
-            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                continue;
-            }
+        if (m_scanProgress->wasCanceled()) {
+            m_scanCancelled = true;
+            return false;
+        }
+        return true;
+    }
 
-            ResultDocument doc;
-            doc.m_assetId = filePath.toUtf8().data(); // Keep original-case path for file I/O
+    void LUAEditorFindWidget::BeginScanProgress(const QString &searchText) {
+        m_scanCancelled = false;
+        m_scanTruncated = false;
 
-            QTextStream in(&file);
-            int lineNumber = 1;
-            while (!in.atEnd()) {
-                QString line = in.readLine();
-                ResultEntry entry;
-                entry.m_lineNumber = lineNumber;
-                entry.m_lineText = line;
+        if (!m_scanProgress) {
+            m_scanProgress = new QProgressDialog(tr("Searching for \"%1\"...").arg(searchText), tr("Cancel"), 0, 0, this);
+            m_scanProgress->setWindowTitle(tr("Find in Files"));
+            // Application modal so the find dialog cannot be closed from under the running scan.
+            m_scanProgress->setWindowModality(Qt::ApplicationModal);
+            m_scanProgress->setMinimumDuration(500); // Don't flash for small directories.
+            m_scanProgress->setAutoClose(false);
+            m_scanProgress->setAutoReset(false);
+        } else {
+            m_scanProgress->setLabelText(tr("Searching for \"%1\"...").arg(searchText));
+        }
+    }
 
-                if (isRegex || wholeWords) {
-                    QRegularExpressionMatchIterator matchIt = regex.globalMatch(line);
-                    while (matchIt.hasNext()) {
-                        QRegularExpressionMatch match = matchIt.next();
-                        entry.m_matches.push_back(AZStd::make_pair(static_cast<int>(match.capturedStart()),
-                                                                   static_cast<int>(match.capturedLength())));
-                    }
-                } else {
-                    int pos = 0;
-                    while (pos >= 0) {
-                        pos = line.indexOf(searchText, pos, cs);
-                        if (pos >= 0) {
-                            entry.m_matches.push_back(AZStd::make_pair(pos, searchText.length()));
-                            pos += searchText.length();
-                        }
-                    }
-                }
+    void LUAEditorFindWidget::EndScanProgress() {
+        if (m_scanProgress) {
+            m_scanProgress->close();
+            delete m_scanProgress;
+            m_scanProgress = nullptr;
+        }
+    }
 
-                if (!entry.m_matches.empty()) {
-                    if (!m_resultList.contains(filePath)) {
-                        m_resultList[filePath] = doc;
-                    }
-                    m_resultList[filePath].m_entries.push_back(entry);
-                }
-                lineNumber++;
-            }
+    int LUAEditorFindWidget::PopulateResultsWidget(FindResults *resultsWidget, const QString &searchText) {
+        if (!resultsWidget) {
+            return 0;
         }
 
+        // Calculate total matches.
         int totalMatches = 0;
         for (auto iter = m_resultList.begin(); iter != m_resultList.end(); ++iter) {
-            for (auto &entry: iter->m_entries) {
-                totalMatches += entry.m_matches.size();
+            for (const auto &entry: iter->m_entries) {
+                totalMatches += static_cast<int>(entry.m_matches.size());
             }
         }
 
+        // Now populate the results widget with processed data.
         auto doc = resultsWidget->Document();
 
-        auto setFoldLevel = [&doc](int lineNum, int foldLevel, int depth) {
+        const auto setFoldLevel = [&doc](int lineNum, int foldLevel, int depth) {
             QTBlockState blockState;
             auto block = doc->findBlockByNumber(lineNum);
             AZ_Assert(block.isValid(), "should only be setting fold level on a just added line");
@@ -789,57 +756,81 @@ namespace LUAEditor {
         };
 
         int currentLine = 0;
+        // Use Qt's %n plural forms for proper internationalization.
+        // Languages like Russian, Arabic, etc. have more than 2 plural forms.
         QString hits = tr("%n hit(s)", "", totalMatches);
+        //: %n is the number of files containing matches
         QString files = tr("%n file(s)", "", static_cast<int>(m_resultList.size()));
-        QString header = tr("Find \"%1\" (%2 in %3)")
-                .arg(searchText, hits, files);
+
+        const QString header = m_scanTruncated
+                ? tr("Find \"%1\" (%2 in %3, stopped after %4 matches)")
+                          .arg(searchText, hits, files)
+                          .arg(s_maxResultLines)
+                : tr("Find \"%1\" (%2 in %3)").arg(searchText, hits, files);
         resultsWidget->AppendPlainText(header);
         setFoldLevel(currentLine, 0, 0);
 
         for (auto iter = m_resultList.begin(); iter != m_resultList.end(); ++iter) {
             ++currentLine;
-            QString fileHits = (iter->m_entries.size() == 1) ? "hit" : "hits";
+            const QString fileHits = (iter->m_entries.size() == 1) ? "hit" : "hits";
             QString text("\t\"%1\" (%2 %3)");
-            text = text.arg(iter.key()).arg(iter->m_entries.size()).arg(fileHits);
+            text = text.arg(iter.key()).arg(static_cast<int>(iter->m_entries.size())).arg(fileHits);
             resultsWidget->AppendPlainText(text);
             setFoldLevel(currentLine, 1, 1);
 
-            for (auto &entry: iter->m_entries) {
+            for (const auto &entry: iter->m_entries) {
                 ++currentLine;
                 QString lineText = "\t\t\tLine %1: %2";
                 lineText = lineText.arg(entry.m_lineNumber).arg(entry.m_lineText);
                 resultsWidget->AppendPlainText(lineText);
+                setFoldLevel(currentLine, 1, 2);
 
-                if (entry.m_matches.empty()) {
-                    setFoldLevel(currentLine, 1, 2);
-                    auto block = doc->findBlockByNumber(currentLine);
-                    AZ_Assert(block.isValid(), "should only be setting data on a just added line");
-                    auto assignAssetId = [resultsWidget](const AZStd::string &assetName, const AZStd::string &assetId) {
-                        resultsWidget->AssignAssetId(assetName, assetId);
-                    };
-                    block.setUserData(aznew FindResultsBlockInfo{
-                        iter->m_assetId, iter.key().toUtf8().data(), entry.m_lineNumber, 0, assignAssetId
-                    });
-                } else {
-                    setFoldLevel(currentLine, 1, 2);
-                    auto block = doc->findBlockByNumber(currentLine);
-                    AZ_Assert(block.isValid(), "should only be setting data on a just added line");
-                    auto assignAssetId = [resultsWidget](const AZStd::string &assetName, const AZStd::string &assetId) {
-                        resultsWidget->AssignAssetId(assetName, assetId);
-                    };
-                    block.setUserData(aznew FindResultsBlockInfo{
-                        iter->m_assetId, iter.key().toUtf8().data(), entry.m_lineNumber, entry.m_matches[0].first,
-                        assignAssetId
-                    });
-                }
+                auto block = doc->findBlockByNumber(currentLine);
+                AZ_Assert(block.isValid(), "should only be setting data on a just added line");
+                // Entries always carry at least one match position; fall back to column 0 defensively.
+                const int column = entry.m_matches.empty() ? 0 : entry.m_matches[0].first;
+                auto assignAssetId = [resultsWidget](const AZStd::string &assetName, const AZStd::string &assetId) {
+                    resultsWidget->AssignAssetId(assetName, assetId);
+                };
+                block.setUserData(aznew FindResultsBlockInfo{
+                        iter->m_assetId, iter.key().toUtf8().data(), entry.m_lineNumber, column, assignAssetId
+                });
             }
 
             setFoldLevel(currentLine, 0, 2);
         }
 
-        resultsWidget->FinishedAddingText(searchText, isRegex, wholeWords, caseSensitive);
+        resultsWidget->FinishedAddingText(searchText,
+                                          ui->pushButtonRegEx->isChecked(),
+                                          ui->pushButtonWholeWords->isChecked(),
+                                          ui->pushButtonCaseSensitive->isChecked());
 
-        return true;
+        return totalMatches;
+    }
+
+    bool LUAEditorFindWidget::SearchInDirectory(QWidget *parentWidget, FindResults *resultsWidget,
+                                                const QString &searchText) {
+        Q_UNUSED(parentWidget);
+        if (m_searchDirectory.isEmpty() || !resultsWidget || searchText.isEmpty()) {
+            return false;
+        }
+
+        m_resultList.clear(); // Clear previous results
+
+        // Scanning an arbitrary directory tree can take a long time; keep the editor responsive and
+        // let the user abort instead of having to kill the application.
+        BeginScanProgress(searchText);
+        ScanDirectory(searchText);
+        EndScanProgress();
+
+        if (m_scanCancelled) {
+            m_resultList.clear();
+            return false;
+        }
+
+        // Only report success when something was found, so callers don't open an empty results window.
+        const int totalMatches = PopulateResultsWidget(resultsWidget, searchText);
+        return totalMatches > 0;
     }
 
     void LUAEditorFindWidget::OnReplaceAllClicked() {
@@ -915,28 +906,43 @@ namespace LUAEditor {
         SetSearchScope(index);
     }
 
+    void LUAEditorFindWidget::SyncScopeActions() const {
+        if (m_currentFileAction) {
+            m_currentFileAction->setChecked(m_searchScope == 0);
+        }
+        if (m_openFilesAction) {
+            m_openFilesAction->setChecked(m_searchScope == 1);
+        }
+        if (m_directoryAction) {
+            m_directoryAction->setChecked(m_searchScope == 2);
+        }
+    }
+
     void LUAEditorFindWidget::SetSearchScope(int scope) {
+        const int previousScope = m_searchScope;
         m_searchScope = scope;
 
         if (m_searchScope == 2) // Directory
         {
             QString dir = QFileDialog::getExistingDirectory(this, tr("Select Directory to Search"),
                                                             m_searchDirectory.isEmpty()
-                                                                ? AZ::Utils::GetProjectPath().c_str()
-                                                                : m_searchDirectory);
+                                                                    ? AZ::Utils::GetProjectPath().c_str()
+                                                                    : m_searchDirectory);
             if (!dir.isEmpty()) {
                 m_searchDirectory = dir;
             } else {
-                // If user cancelled, maybe we should revert the scope?
-                // But the action is already checked. For now, just keep it.
+                // The user cancelled the folder picker: revert so we don't stay on "Search in Files..." with no directory.
+                m_searchScope = previousScope;
             }
         }
+
+        SyncScopeActions();
 
         if (m_searchScope == 0) // Current File
         {
             ui->pushButtonFindNext->setEnabled(true);
             ui->pushButtonFindPrevious->setEnabled(true);
-        } else // All Open Files or All LUA Assets
+        } else // All Open Files or Directory
         {
             ui->pushButtonFindNext->setEnabled(false);
             ui->pushButtonFindPrevious->setEnabled(false);
@@ -956,10 +962,15 @@ namespace LUAEditor {
             return;
         }
 
-        // Get the current result index from the FindResultsWidget context menu
+        const QString searchText = ui->lineEditFindText->text();
+        if (searchText.isEmpty()) {
+            AZ_TracePrintf("LUAEditorFindWidget", "Search text is empty - returning early\n");
+            return;
+        }
+
+        // Get the current result index from the FindResultsWidget context menu.
         const int widgetIndex = GetCurrentResultIndex();
 
-        // Validate that we have a valid main window and results widget before proceeding
         pLUAEditorMainWindow->SetCurrentFindListWidget(widgetIndex);
         FindResults *const resultsWidget = pLUAEditorMainWindow->GetFindResultsWidget(widgetIndex);
 
@@ -969,134 +980,49 @@ namespace LUAEditor {
             return;
         }
 
+        m_resultList.clear(); // Clear previous results before re-scanning.
+        m_scanTruncated = false; // Only a directory scan can truncate; reset for the open-document scopes.
+
+        if (m_searchScope == 0) // Current File
+        {
+            FindInCurrentDoc();
+        } else if (m_searchScope == 1) // All Open Files
+        {
+            FindInOpenDocs();
+        } else if (m_searchScope == 2) // Directory
+        {
+            BeginScanProgress(searchText);
+            ScanDirectory(searchText);
+            EndScanProgress();
+            if (m_scanCancelled) {
+                m_resultList.clear();
+                return;
+            }
+        }
+        // else if (m_searchScope == 3) { FindInAllAssets(); }
+
+        if (m_resultList.isEmpty()) {
+            AZ_TracePrintf("LUAEditorFindWidget", "No matches found for \"%s\" - keeping previous results\n",
+                           searchText.toUtf8().constData());
+            return;
+        }
+
         resultsWidget->Clear();
         pLUAEditorMainWindow->ResetSearchClicks();
 
-        if (!ui->lineEditFindText->text().isEmpty()) {
-            m_resultList.clear(); // Clear previous results
+        PopulateResultsWidget(resultsWidget, searchText);
 
-            if (m_searchScope == 0) // Current File
-            {
-                FindInCurrentDoc();
-            } else if (m_searchScope == 1) // All Open Files
-            {
-                FindInOpenDocs();
-            } else if (m_searchScope == 2) // Directory
-            {
-                FindInDirectory();
-            }
-            // else if (m_searchScope == 2) { FindInAllAssets(); }
+        // Show and activate the tab widget using the main window's method.
+        auto *const luaFindTabWidget = pLUAEditorMainWindow->GetFindTabWidget();
+        AZ_Assert(luaFindTabWidget, "LUAEditorMainWindow cant find the FindTabWidget!");
 
-            // Calculate total matches
-            int totalMatches = 0;
-            for (auto iter = m_resultList.begin(); iter != m_resultList.end(); ++iter) {
-                for (auto &entry: iter->m_entries) {
-                    totalMatches += entry.m_matches.size();
-                }
-            }
+        // Show and activate the tab widget.
+        luaFindTabWidget->show();
+        luaFindTabWidget->raise();
+        luaFindTabWidget->activateWindow();
+        luaFindTabWidget->setFocus();
 
-            // Now populate the results widget with processed data
-            auto doc = resultsWidget->Document();
-
-            auto setFoldLevel = [&doc](int lineNum, int foldLevel, int depth) {
-                QTBlockState blockState;
-                auto block = doc->findBlockByNumber(lineNum);
-                AZ_Assert(block.isValid(), "should only be setting fold level on a just added line");
-                blockState.m_qtBlockState = block.userState();
-                blockState.m_blockState.m_uninitialized = 0;
-                blockState.m_blockState.m_folded = 0;
-                blockState.m_blockState.m_foldLevel = foldLevel;
-                blockState.m_blockState.m_syntaxHighlighterState = depth;
-                block.setUserState(blockState.m_qtBlockState);
-            };
-
-            int currentLine = 0;
-            // Use Qt's %n plural forms for proper internationalization.
-            // Languages like Russian, Arabic, etc. have more than 2 plural forms.
-            QString hits = tr("%n hit(s)", "", totalMatches);
-            //: %n is the number of files containing matches
-            QString files = tr("%n file(s)", "", static_cast<int>(m_resultList.size()));
-
-            QString header = tr("Find \"%1\" (%2 in %3)")
-                    .arg(ui->lineEditFindText->text(), hits, files);
-            resultsWidget->AppendPlainText(header);
-            setFoldLevel(currentLine, 0, 0);
-
-            for (auto iter = m_resultList.begin(); iter != m_resultList.end(); ++iter) {
-                ++currentLine;
-                if (iter->m_entries.size() == 1) {
-                    hits = "hit";
-                } else {
-                    hits = "hits";
-                }
-
-                QString text("\t\"%1\" (%2 %3)");
-                text = text.arg(iter.key()).arg(iter->m_entries.size()).arg(hits);
-                resultsWidget->AppendPlainText(text);
-                setFoldLevel(currentLine, 1, 1);
-
-                for (auto &entry: iter->m_entries) {
-                    ++currentLine;
-                    text = "\t\t\tLine %1: %2";
-                    text = text.arg(entry.m_lineNumber).arg(entry.m_lineText);
-                    resultsWidget->AppendPlainText(text);
-
-                    // Safety check - ensure we have at least one match before accessing
-                    if (entry.m_matches.empty()) {
-                        // Use a default position value instead of crashing
-                        setFoldLevel(currentLine, 1, 2);
-
-                        auto block = doc->findBlockByNumber(currentLine);
-                        AZ_Assert(block.isValid(), "should only be setting data on a just added line");
-                        auto assignAssetId = [resultsWidget](const AZStd::string &assetName,
-                                                             const AZStd::string &assetId) {
-                            resultsWidget->AssignAssetId(assetName, assetId);
-                        };
-                        block.setUserData(aznew FindResultsBlockInfo{
-                            iter->m_assetId, iter.key().toUtf8().data(), entry.m_lineNumber,
-                            0, assignAssetId
-                        });
-                    } else {
-                        AZ_Assert(!entry.m_matches.empty(),
-                                  "shouldn't be an entry at all if there wasn't at least one match");
-                        setFoldLevel(currentLine, 1, 2);
-
-                        auto block = doc->findBlockByNumber(currentLine);
-                        AZ_Assert(block.isValid(), "should only be setting data on a just added line");
-                        auto assignAssetId = [resultsWidget](const AZStd::string &assetName,
-                                                             const AZStd::string &assetId) {
-                            resultsWidget->AssignAssetId(assetName, assetId);
-                        };
-                        block.setUserData(aznew FindResultsBlockInfo{
-                            iter->m_assetId, iter.key().toUtf8().data(), entry.m_lineNumber,
-                            entry.m_matches[0].first, assignAssetId
-                        });
-                    }
-                }
-
-                setFoldLevel(currentLine, 0, 2);
-            }
-
-            resultsWidget->FinishedAddingText(ui->lineEditFindText->text(),
-                                              ui->pushButtonRegEx->isChecked(),
-                                              ui->pushButtonWholeWords->isChecked(),
-                                              ui->pushButtonCaseSensitive->isChecked()
-            );
-
-            // Show and activate the tab widget using the main window's method
-            auto *const luaFindTabWidget = pLUAEditorMainWindow->GetFindTabWidget();
-            AZ_Assert(luaFindTabWidget, "LUAEditorMainWindow cant find the FindTabWidget!");
-
-            // Show and activate the tab widget
-            luaFindTabWidget->show();
-            luaFindTabWidget->raise();
-            luaFindTabWidget->activateWindow();
-            luaFindTabWidget->setFocus();
-
-            // Open the find view matching the results widget we just populated.
-            pLUAEditorMainWindow->OnOpenFindView(widgetIndex);
-        } else {
-            AZ_TracePrintf("LUAEditorFindWidget", "Search text is empty - returning early\n");
-        }
+        // Open the find view matching the results widget we just populated.
+        pLUAEditorMainWindow->OnOpenFindView(widgetIndex);
     }
 }

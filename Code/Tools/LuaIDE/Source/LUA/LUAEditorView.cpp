@@ -28,7 +28,6 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QRegularExpression>
-#include <QLineEdit>
 
 namespace LUAEditor
 {
@@ -1267,17 +1266,11 @@ namespace LUAEditor
         }
         if (show)
         {
-            // Set focus to the find text field when showing the widget
+            // Defer focus until after the widget has been shown, then hand it to the find text field.
             QTimer::singleShot(0, [this]() {
                 if (m_gui && m_gui->m_findReplaceWidget)
                 {
-                    // Find the find text line edit and set focus to it
-                    auto findText = m_gui->m_findReplaceWidget->findChild<QLineEdit*>("lineEditFindText");
-                    if (findText)
-                    {
-                        findText->setFocus();
-                        findText->selectAll();
-                    }
+                    static_cast<LUAEditorFindWidget*>(m_gui->m_findReplaceWidget)->FocusSearchInput();
                 }
             });
         }
@@ -1292,17 +1285,11 @@ namespace LUAEditor
         }
         if (show)
         {
-            // Set focus to the replace text field when showing the widget
+            // Defer focus until after the widget has been shown, then hand it to the replace text field.
             QTimer::singleShot(0, [this]() {
                 if (m_gui && m_gui->m_findReplaceWidget)
                 {
-                    // Find the replace text line edit and set focus to it
-                    auto replaceText = m_gui->m_findReplaceWidget->findChild<QLineEdit*>("lineEditReplaceText");
-                    if (replaceText)
-                    {
-                        replaceText->setFocus();
-                        replaceText->selectAll();
-                    }
+                    static_cast<LUAEditorFindWidget*>(m_gui->m_findReplaceWidget)->FocusReplaceInput();
                 }
             });
         }

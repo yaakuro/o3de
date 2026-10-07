@@ -64,7 +64,10 @@ namespace LUAEditor
                         const int length = static_cast<int>(match.capturedLength());
                         setFormat(index, length, textFormat);
 
-                        match = regex.match(text, index + length);
+                        // A zero-length match (for example "a*", ".*" or "^") matches at the same
+                        // position forever; always advance by at least one character.
+                        const int next = index + (length > 0 ? length : 1);
+                        match = regex.match(text, next);
                         index = static_cast<int>(match.capturedStart());
                     }
                 }

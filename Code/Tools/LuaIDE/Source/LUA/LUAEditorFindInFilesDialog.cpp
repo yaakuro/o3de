@@ -26,6 +26,11 @@ namespace LUAEditor
         this->setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
 
         m_findWidget = static_cast<LUAEditorFindWidget*>(m_gui->m_findInFilesWidget);
+        if (m_findWidget && mainWindow)
+        {
+            // The find widget needs the main window to open and switch results tabs.
+            m_findWidget->SetMainWindow(mainWindow);
+        }
         m_findWidget->SetShowFind(true);
         m_findWidget->SetFindInFilesMode();
 
