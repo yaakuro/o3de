@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <AzCore/std/containers/unordered_set.h>
 #include <AzFramework/Input/Devices/Mouse/InputDeviceMouse.h>
 #include <AzFramework/XcbConnectionManager.h>
 #include <AzFramework/XcbEventHandler.h>
@@ -79,11 +80,18 @@ namespace AzFramework
         //! Create barriers.
         void CreateBarriers(xcb_window_t window, bool create);
 
-        //! Helper function.
+        //! Maps a system cursor state to whether the cursor should be confined and whether it should be visible.
         void SystemCursorStateToLogic(SystemCursorState systemCursorState, bool& confined, bool& cursorShown);
 
-        //! Shows/Hides the cursor.
-        void ShowCursor(xcb_window_t window, bool show);
+        //! Requests the cursor to be shown or hidden. XFixes counts hide/shows per screen (and per
+        //! client), so the window only selects the screen. Returns true if the request was applied
+        //! (or the cursor was already in the requested state).
+        bool ShowCursor(xcb_window_t window, bool show);
+
+        //! Returns the root window of the screen the given window belongs to, which can be used as
+        //! a stable target for XFixes hide/show requests. Falls back to the default screen root if
+        //! the window is unknown or no longer exists.
+        xcb_window_t GetScreenRootForWindow(xcb_window_t window) const;
 
         //! Get the normalized cursor position. The coordinates returned are relative to the specified window.
         AZ::Vector2 GetSystemCursorPositionNormalizedInternal(xcb_window_t window) const;
@@ -94,8 +102,10 @@ namespace AzFramework
         //! Handle button press/release events.
         void HandleButtonPressEvents(uint32_t detail, bool pressed);
 
-        //! Will set cursor states and confinement modes.
-        void HandleCursorState(xcb_window_t window, SystemCursorState systemCursorState);
+        //! Applies the current system cursor state: while the cursor should be hidden it is hidden on
+        //! the cursor constraint window and on the currently focused window, and it is shown again on
+        //! every other window it was hidden on; (un)confines the cursor as needed.
+        void ReconcileCursorState();
 
         //! Will handle all raw input events.
         void HandleRawInputEvents(const xcb_ge_generic_event_t* event);
@@ -166,8 +176,16 @@ namespace AzFramework
         //! The current window that has focus
         xcb_window_t m_focusWindow;
 
-        //! Will be true if the cursor is shown else false.
+        //! Will be true if the cursor is not hidden on any window, else false.
         bool m_cursorShown;
+
+        //! The set of screen root windows that currently hold an outstanding XFixes hide request.
+        //! XFixes counts hide/show requests per screen (and per client); the window argument only
+        //! selects the screen. Because a hide is not released when a view/overlay window is
+        //! destroyed, every hide/show is issued on the screen's root window (which is valid for as
+        //! long as the connection lives) and this set tracks which screens currently have an
+        //! outstanding hide, so the cursor can never remain hidden for the lifetime of the process.
+        AZStd::unordered_set<xcb_window_t> m_hiddenCursorScreens;
 
         struct XFixesBarrierProperty
         {

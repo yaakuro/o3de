@@ -13,7 +13,7 @@
 
 namespace AzFramework
 {
-    xcb_window_t GetSystemCursorFocusWindow(xcb_connection_t* connection)
+    xcb_window_t GetSystemCursorConstraintWindow()
     {
         void* systemCursorFocusWindow = nullptr;
         AzFramework::InputSystemCursorConstraintRequestBus::BroadcastResult(
@@ -22,6 +22,17 @@ namespace AzFramework
         if (systemCursorFocusWindow)
         {
             return static_cast<xcb_window_t>(reinterpret_cast<uint64_t>(systemCursorFocusWindow));
+        }
+
+        return XCB_WINDOW_NONE;
+    }
+
+    xcb_window_t GetSystemCursorFocusWindow(xcb_connection_t* connection)
+    {
+        const xcb_window_t constraintWindow = GetSystemCursorConstraintWindow();
+        if (constraintWindow != XCB_WINDOW_NONE)
+        {
+            return constraintWindow;
         }
 
         // EWMH-compliant window managers set the "_NET_ACTIVE_WINDOW" property
@@ -179,8 +190,10 @@ namespace AzFramework
                 return;
             }
 
+            // Translate the window origin into the coordinate space of the screen it lives on, so
+            // the barrier geometry is correct on multi-screen setups.
             const xcb_translate_coordinates_cookie_t translate_coord =
-                xcb_translate_coordinates(s_xcbConnection, window, s_xcbScreen->root, 0, 0);
+                xcb_translate_coordinates(s_xcbConnection, window, xcbGeometryReply->root, 0, 0);
 
             const XcbStdFreePtr<xcb_translate_coordinates_reply_t> xkbTranslateCoordReply{ xcb_translate_coordinates_reply(
                 s_xcbConnection, translate_coord, nullptr) };
@@ -316,30 +329,122 @@ namespace AzFramework
 
     void XcbInputDeviceMouse::SetSystemCursorState(SystemCursorState systemCursorState)
     {
-        if (m_captureCursor) {
-            if (systemCursorState != m_systemCursorState) {
-                m_systemCursorState = systemCursorState;
+        if (m_captureCursor)
+        {
+            m_systemCursorState = systemCursorState;
 
-                m_focusWindow = GetSystemCursorFocusWindow(s_xcbConnection);
+            m_focusWindow = GetSystemCursorFocusWindow(s_xcbConnection);
 
-                HandleCursorState(m_focusWindow, systemCursorState);
-            }
-
+            // Always reconcile, even when the requested state did not change. The cursor may still
+            // be hidden from a previous transition (e.g. a hide that was not released yet), and
+            // this is the last chance to make sure it is shown again when leaving game mode.
+            ReconcileCursorState();
         }
     }
 
-    void XcbInputDeviceMouse::HandleCursorState(xcb_window_t window, SystemCursorState systemCursorState)
+    void XcbInputDeviceMouse::SystemCursorStateToLogic(SystemCursorState systemCursorState, bool& confined, bool& cursorShown)
     {
-        if (m_captureCursor)
-        {
-            const bool confined = (systemCursorState == SystemCursorState::ConstrainedAndHidden) ||
-                (systemCursorState == SystemCursorState::ConstrainedAndVisible);
-            const bool cursorShown = (systemCursorState == SystemCursorState::ConstrainedAndVisible) ||
-                (systemCursorState == SystemCursorState::UnconstrainedAndVisible);
+        confined = (systemCursorState == SystemCursorState::ConstrainedAndHidden) ||
+            (systemCursorState == SystemCursorState::ConstrainedAndVisible);
+        // The cursor is only hidden for explicitly hidden states. An unknown state is treated as
+        // visible so that it can never leave the cursor hidden.
+        cursorShown = (systemCursorState == SystemCursorState::ConstrainedAndVisible) ||
+            (systemCursorState == SystemCursorState::UnconstrainedAndVisible) || (systemCursorState == SystemCursorState::Unknown);
+    }
 
-            CreateBarriers(window, confined);
-            ShowCursor(window, cursorShown);
+    void XcbInputDeviceMouse::ReconcileCursorState()
+    {
+        if (!m_captureCursor)
+        {
+            return;
         }
+
+        bool confined = false;
+        bool cursorShown = false;
+        SystemCursorStateToLogic(m_systemCursorState, confined, cursorShown);
+
+        // XFixes counts hide/shows per screen (and per client); the window argument only selects the
+        // screen. Every hide/show is therefore issued on the screen's root window, which is valid
+        // for as long as the connection lives and can never be destroyed by a view or overlay being
+        // reparented (for example when entering or leaving fullscreen preview). This also makes the
+        // behaviour correct on multi-monitor setups where a window lives on one particular screen.
+        const xcb_window_t constraintWindow = GetSystemCursorConstraintWindow();
+        const xcb_window_t targetScreenRoot =
+            GetScreenRootForWindow(constraintWindow != XCB_WINDOW_NONE ? constraintWindow : m_focusWindow);
+
+        const bool cursorWasHidden = !m_cursorShown;
+
+        // Remember where the cursor was before it gets hidden, so it can be restored when it
+        // becomes visible again. This is intentionally tied to the visible/hidden transition of the
+        // cursor as a whole, not to individual screens, otherwise the position would be overwritten
+        // with the position the cursor was warped to while already hidden.
+        if (!cursorShown && m_hiddenCursorScreens.empty())
+        {
+            m_cursorHiddenPosition = GetSystemCursorPositionNormalizedInternal(targetScreenRoot);
+        }
+
+        if (cursorShown)
+        {
+            // Release every outstanding hide, on every screen it may have been issued for. Only
+            // forget a screen once its hide has actually been released; a failed show must be
+            // retried on a later reconcile, otherwise the cursor could stay hidden forever.
+            for (auto it = m_hiddenCursorScreens.begin(); it != m_hiddenCursorScreens.end();)
+            {
+                if (ShowCursor(*it, true))
+                {
+                    it = m_hiddenCursorScreens.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+        else if (m_hiddenCursorScreens.find(targetScreenRoot) == m_hiddenCursorScreens.end())
+        {
+            // Only record the hide once it succeeded, so the tracked set always matches the number
+            // of outstanding XFixes hide requests.
+            if (ShowCursor(targetScreenRoot, false))
+            {
+                m_hiddenCursorScreens.insert(targetScreenRoot);
+            }
+        }
+
+        const bool cursorWillBeHidden = !m_hiddenCursorScreens.empty();
+
+        if (cursorWillBeHidden && !cursorWasHidden)
+        {
+            // Center the cursor while it is hidden, so the game starts from a well defined position.
+            SetSystemCursorPositionNormalized(AZ::Vector2(0.5f, 0.5f));
+        }
+        else if (!cursorWillBeHidden && cursorWasHidden)
+        {
+            // Restore the cursor position it had before it was hidden, on the screen it was hidden
+            // for.
+            SetSystemCursorPositionNormalizedInternal(targetScreenRoot, m_cursorHiddenPosition);
+        }
+
+        m_cursorShown = !cursorWillBeHidden;
+
+        CreateBarriers(m_focusWindow, confined);
+    }
+
+    xcb_window_t XcbInputDeviceMouse::GetScreenRootForWindow(xcb_window_t window) const
+    {
+        // A window belongs to exactly one screen; querying its geometry yields that screen's root.
+        // The root window is used as the target for XFixes hide/show requests because it lives for
+        // as long as the connection and therefore can never go away underneath an outstanding hide.
+        if (window != XCB_WINDOW_NONE)
+        {
+            const XcbStdFreePtr<xcb_get_geometry_reply_t> geometryReply{ xcb_get_geometry_reply(
+                s_xcbConnection, xcb_get_geometry(s_xcbConnection, window), nullptr) };
+            if (geometryReply)
+            {
+                return geometryReply->root;
+            }
+        }
+
+        return s_xcbScreen->root;
     }
 
     SystemCursorState XcbInputDeviceMouse::GetSystemCursorState() const
@@ -425,50 +530,28 @@ namespace AzFramework
         ProcessRawEventQueues();
     }
 
-    void XcbInputDeviceMouse::ShowCursor(xcb_window_t window, bool show)
+    bool XcbInputDeviceMouse::ShowCursor(xcb_window_t window, bool show)
     {
         if (!show && AZ::Debug::Trace::Instance().IsDebuggerPresent())
         {
-            return;
+            return true;
         }
 
-        xcb_void_cookie_t cookie;
-        if (show)
-        {
-            cookie = xcb_xfixes_show_cursor_checked(s_xcbConnection, window);
-        }
-        else
-        {
-            cookie = xcb_xfixes_hide_cursor_checked(s_xcbConnection, window);
-        }
+        const xcb_void_cookie_t cookie = show ? xcb_xfixes_show_cursor_checked(s_xcbConnection, window)
+                                              : xcb_xfixes_hide_cursor_checked(s_xcbConnection, window);
 
         const XcbStdFreePtr<xcb_generic_error_t> xcbError{ xcb_request_check(s_xcbConnection, cookie) };
 
-        if (xcbError)
+        // A BadMatch means there is no outstanding hide left to release (or there was nothing to
+        // hide), which is exactly the requested end state, so it is not an error.
+        if (xcbError && xcbError->error_code != XCB_MATCH)
         {
-            AZ_Warning("XcbInput", false, "ShowCursor failed: %d", xcbError->error_code);
-
-            return;
-        }
-
-        // ATTN In the following part we will when cursor gets hidden store the position of the cursor in screen space
-        // not window space. We use that to re-position when showing the cursor again. Is this the correct
-        // behavior?
-
-        const bool cursorWasHidden = !m_cursorShown;
-        m_cursorShown = show;
-        if (!m_cursorShown)
-        {
-            m_cursorHiddenPosition = GetSystemCursorPositionNormalizedInternal(s_xcbScreen->root);
-
-            SetSystemCursorPositionNormalized(AZ::Vector2(0.5f, 0.5f));
-        }
-        else if (cursorWasHidden)
-        {
-            SetSystemCursorPositionNormalizedInternal(s_xcbScreen->root, m_cursorHiddenPosition);
+            AZ_Warning("XcbInput", false, "ShowCursor(%s) failed: %d", show ? "show" : "hide", xcbError->error_code);
+            return false;
         }
 
         xcb_flush(s_xcbConnection);
+        return true;
     }
 
     void XcbInputDeviceMouse::HandleButtonPressEvents(uint32_t detail, bool pressed)
@@ -581,19 +664,11 @@ namespace AzFramework
                 const xcb_focus_in_event_t* focusInEvent = reinterpret_cast<const xcb_focus_in_event_t*>(event);
                 if (m_focusWindow != focusInEvent->event)
                 {
-                    if (m_focusWindow != XCB_WINDOW_NONE)
-                    {
-                        HandleCursorState(m_focusWindow, SystemCursorState::UnconstrainedAndVisible);
-                    }
-
                     m_focusWindow = focusInEvent->event;
 
-                    // If the cursor state is Unknown, then calling HandleCursorState would hide the cursor, 
-                    // but we should only hide the cursor if m_systemCursorState is explicitly hidden.
-                    if(SystemCursorState::Unknown != m_systemCursorState) 
-                    {
-                        HandleCursorState(m_focusWindow, m_systemCursorState);
-                    }
+                    // Show the cursor again on any window it was hidden on before, and hide it on the
+                    // newly focused window if the current state requires it.
+                    ReconcileCursorState();
                 }
 
                 auto* interface = AzFramework::XcbConnectionManagerInterface::Get();
@@ -602,13 +677,14 @@ namespace AzFramework
             break;
         case XCB_FOCUS_OUT:
             {
-                const xcb_focus_out_event_t* focusOutEvent = reinterpret_cast<const xcb_focus_out_event_t*>(event);
-                HandleCursorState(focusOutEvent->event, SystemCursorState::UnconstrainedAndVisible);
+                // Focus left the window the cursor was hidden on; it must become visible there
+                // again. The cursor constraint window (the game view) stays hidden while the
+                // state requires it.
+                m_focusWindow = XCB_WINDOW_NONE;
+                ReconcileCursorState();
 
                 ProcessRawEventQueues();
                 ResetInputChannelStates();
-
-                m_focusWindow = XCB_WINDOW_NONE;
 
                 auto* interface = AzFramework::XcbConnectionManagerInterface::Get();
                 interface->SetEnableXInput(interface->GetXcbConnection(), false);
